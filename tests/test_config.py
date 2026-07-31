@@ -200,3 +200,49 @@ def test_relative_paths_resolved_against_config_dir(tmp_path):
     cfg_file.write_text("channels:\n  - path: arthur\n    name: Arthur\n")
     cfg = load_config(cfg_file)
     assert cfg.channels[0].path == tmp_path / "arthur"
+
+
+def test_server_programming_pools_and_schedule(tmp_path):
+    for folder in ("rugrats", "arnold", "bumpers", "commercials"):
+        make_show(tmp_path, folder, 1)
+    cfg = config_from_dict(
+        {
+            "schedule": {
+                "timezone": "America/Chicago",
+                "horizon_hours": 12,
+            },
+            "channels": [
+                {
+                    "number": 2,
+                    "name": "Nick 2001",
+                    "shows": ["rugrats", "arnold"],
+                    "bumpers": ["bumpers"],
+                    "commercials": ["commercials"],
+                }
+            ],
+        },
+        base_dir=tmp_path,
+    )
+    channel = cfg.channels[0]
+    assert channel.path == tmp_path / "rugrats"
+    assert channel.shows == (tmp_path / "rugrats", tmp_path / "arnold")
+    assert channel.bumpers == (tmp_path / "bumpers",)
+    assert channel.commercials == (tmp_path / "commercials",)
+    assert cfg.schedule_timezone == "America/Chicago"
+    assert cfg.schedule_horizon_hours == 12
+
+
+def test_server_channel_requires_path_or_shows():
+    with pytest.raises(ConfigError, match="path.*shows"):
+        config_from_dict({"channels": [{"number": 2, "name": "Empty"}]})
+
+
+def test_bad_schedule_timezone_rejected(tmp_path):
+    make_show(tmp_path, "a", 1)
+    with pytest.raises(ConfigError, match="timezone"):
+        config_from_dict(
+            {
+                "schedule": {"timezone": "Not/A_Timezone"},
+                "channels": [{"path": str(tmp_path / "a")}],
+            }
+        )

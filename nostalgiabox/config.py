@@ -78,6 +78,12 @@ class ChannelConfig:
     # a set of season numbers detected from the path (e.g. S06E01, "Season 6").
     exclude: tuple[str, ...] = ()
     exclude_seasons: frozenset[int] = frozenset()
+    # Headless-server programming pools. ``path`` remains the canonical folder
+    # for the original HDMI appliance; for a network channel it is the first
+    # show folder so older consumers continue to behave predictably.
+    shows: tuple[Path, ...] = ()
+    bumpers: tuple[Path, ...] = ()
+    commercials: tuple[Path, ...] = ()
 
     def __post_init__(self) -> None:
         if self.number < 0:
@@ -131,6 +137,8 @@ class Config:
 
     # Options for the input backends (see input/manager.create_backends).
     input_options: Mapping[str, Any] = field(default_factory=dict)
+    schedule_timezone: str = "UTC"
+    schedule_horizon_hours: int = 24
 
     def channel_numbers(self) -> List[int]:
         return [c.number for c in self.channels]
@@ -193,21 +201,41 @@ def _parse_channels(raw: Any, base: Optional[Path], default_shuffle: bool) -> Li
     for i, entry in enumerate(raw):
         if not isinstance(entry, dict):
             raise ConfigError(f"channel #{i} must be a mapping, got {type(entry).__name__}")
-        if "path" not in entry:
-            raise ConfigError(f"channel #{i} is missing required key 'path'")
+        show_values = _parse_path_list(entry.get("shows"), "shows", base)
+        if "path" not in entry and not show_values:
+            raise ConfigError(f"channel #{i} must define 'path' or a non-empty 'shows' list")
+        primary_path = (
+            _as_path(entry["path"], base) if "path" in entry else show_values[0]
+        )
+        if not show_values:
+            show_values = (primary_path,)
         number = entry.get("number", i + 2)  # old TVs often started around ch. 2
-        name = entry.get("name") or _prettify_name(Path(str(entry["path"])).name)
+        name = entry.get("name") or _prettify_name(primary_path.name)
         channels.append(
             ChannelConfig(
                 number=int(number),
                 name=str(name),
-                path=_as_path(entry["path"], base),
+                path=primary_path,
                 shuffle=bool(entry.get("shuffle", default_shuffle)),
                 exclude=_parse_str_list(entry.get("exclude"), "exclude"),
                 exclude_seasons=_parse_seasons(entry.get("exclude_seasons")),
+                shows=show_values,
+                bumpers=_parse_path_list(entry.get("bumpers"), "bumpers", base),
+                commercials=_parse_path_list(
+                    entry.get("commercials"), "commercials", base
+                ),
             )
         )
     return channels
+
+
+def _parse_path_list(raw: Any, name: str, base: Optional[Path]) -> tuple[Path, ...]:
+    if raw is None:
+        return ()
+    values = [raw] if isinstance(raw, (str, os.PathLike)) else raw
+    if not isinstance(values, list) or not values:
+        raise ConfigError(f"'{name}' must be a path or a non-empty list of paths")
+    return tuple(_as_path(value, base) for value in values)
 
 
 def _parse_str_list(raw: Any, name: str) -> tuple[str, ...]:
@@ -305,6 +333,19 @@ def config_from_dict(data: Dict[str, Any], *, base_dir: Optional[Path] = None) -
     else:
         raise ConfigError("'power_off_command' must be a string or list of strings")
 
+    schedule_raw = data.get("schedule") or {}
+    if not isinstance(schedule_raw, dict):
+        raise ConfigError("'schedule' must be a mapping")
+    schedule_timezone = str(schedule_raw.get("timezone", "UTC"))
+    try:
+        from zoneinfo import ZoneInfo
+
+        ZoneInfo(schedule_timezone)
+    except Exception as exc:
+        raise ConfigError(
+            f"unknown schedule timezone '{schedule_timezone}'"
+        ) from exc
+
     return Config(
         channels=channels,
         video_extensions=extensions,
@@ -329,6 +370,13 @@ def config_from_dict(data: Dict[str, Any], *, base_dir: Optional[Path] = None) -
         shuffle_seed=(int(data["shuffle_seed"]) if data.get("shuffle_seed") is not None else None),
         assets_dir=assets_dir,
         input_options=dict(data.get("input") or {}),
+        schedule_timezone=schedule_timezone,
+        schedule_horizon_hours=_clamp_int(
+            schedule_raw.get("horizon_hours", 24),
+            1,
+            168,
+            "schedule.horizon_hours",
+        ),
     )
 
 

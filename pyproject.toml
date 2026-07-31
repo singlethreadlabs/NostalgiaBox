@@ -25,15 +25,29 @@ pi = [
     "python-mpv>=1.0.5",
     "evdev>=1.6.1",
 ]
+server = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+]
 dev = [
     "pytest>=7.0",
+    "httpx>=0.27",
 ]
 
 [project.scripts]
 nostalgiabox = "nostalgiabox.__main__:main"
+nostalgiabox-server = "nostalgiabox.server.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["nostalgiabox*"]
+
+[tool.setuptools.package-data]
+nostalgiabox = [
+    "assets/fonts/*.ttf",
+    "server/web/*.html",
+    "server/web/*.css",
+    "server/web/*.js",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -29,7 +29,7 @@ _SEASON_PATTERNS = (
 )
 
 from .config import ChannelConfig, Config
-from .playlist import ShuffleBag
+from .playlist import BalancedShuffle
 from .probe import DEFAULT_EPISODE_SECONDS, probe_duration
 
 log = logging.getLogger(__name__)
@@ -127,11 +127,19 @@ class BroadcastSchedule:
         *,
         epoch: float,
         rng: random.Random,
+        episode_pools: Optional[Dict[str, Sequence[Path]]] = None,
     ) -> None:
         if len(episodes) != len(durations):
             raise ValueError("episodes and durations must be the same length")
-        order = list(range(len(episodes)))
-        rng.shuffle(order)
+        if episode_pools and len(episode_pools) > 1:
+            picker = BalancedShuffle(episode_pools, rng)
+            cycle_length = max(map(len, episode_pools.values())) * len(episode_pools)
+            balanced = [picker.next() for _ in range(cycle_length)]
+            positions = {path: i for i, path in enumerate(episodes)}
+            order = [positions[path] for path in balanced]
+        else:
+            order = list(range(len(episodes)))
+            rng.shuffle(order)
         self._episodes = [episodes[i] for i in order]
         self._durations = [max(1.0, float(durations[i])) for i in order]
         self._epoch = epoch
@@ -160,6 +168,7 @@ class Channel:
         start_offset_min: float = 0.0,
         start_offset_max: Optional[float] = None,
         rng: Optional[random.Random] = None,
+        episode_pools: Optional[Dict[str, Sequence[Path]]] = None,
     ) -> None:
         self.config = config
         self.episodes: List[Path] = list(episodes)
@@ -174,8 +183,10 @@ class Channel:
             else max(self.start_offset_min, start_offset_max)
         )
         self._rng = rng or random.Random()
-        self._bag: Optional[ShuffleBag[Path]] = (
-            ShuffleBag(self.episodes, self._rng) if self.episodes else None
+        pools = episode_pools or {str(config.path): self.episodes}
+        self._episode_pools = {key: list(items) for key, items in pools.items() if items}
+        self._bag: Optional[BalancedShuffle[Path]] = (
+            BalancedShuffle(self._episode_pools, self._rng) if self.episodes else None
         )
         # Resume state (used by the "resume" tune-in mode).
         self._resume_path: Optional[Path] = None
@@ -252,7 +263,11 @@ class Channel:
         # Use a channel-stable epoch offset so different channels are out of
         # phase with each other, but keep it deterministic per run.
         self._broadcast = BroadcastSchedule(
-            self.episodes, durations, epoch=epoch, rng=self._rng
+            self.episodes,
+            durations,
+            epoch=epoch,
+            rng=self._rng,
+            episode_pools=self._episode_pools,
         )
         return self._broadcast
 
@@ -313,16 +328,19 @@ class ChannelLineup:
 
 def build_lineup(config: Config, *, rng: Optional[random.Random] = None) -> ChannelLineup:
     """Scan every configured channel folder and build the full lineup."""
-    base_rng = rng or random.Random(config.shuffle_seed)
     channels: List[Channel] = []
     for i, ch_cfg in enumerate(config.channels):
-        episodes = scan_episodes(
-            ch_cfg.path,
-            config.video_extensions,
-            recursive=config.scan_recursive,
-            exclude=ch_cfg.exclude,
-            exclude_seasons=ch_cfg.exclude_seasons,
-        )
+        episode_pools = {
+            str(show): scan_episodes(
+                show,
+                config.video_extensions,
+                recursive=config.scan_recursive,
+                exclude=ch_cfg.exclude,
+                exclude_seasons=ch_cfg.exclude_seasons,
+            )
+            for show in ch_cfg.shows
+        }
+        episodes = [episode for pool in episode_pools.values() for episode in pool]
         if not episodes:
             log.warning(
                 "channel %s (%s) has no playable episodes in %s",
@@ -343,6 +361,7 @@ def build_lineup(config: Config, *, rng: Optional[random.Random] = None) -> Chan
                 start_offset_min=config.start_offset_min,
                 start_offset_max=config.start_offset_max,
                 rng=ch_rng,
+                episode_pools=episode_pools,
             )
         )
     return ChannelLineup(channels)

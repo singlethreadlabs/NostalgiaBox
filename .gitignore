@@ -19,3 +19,12 @@ nostalgiabox/assets/*.mp4
 # OS cruft
 .DS_Store
 Thumbs.db
+
+downloads
+.media-staging/
+.media-backups/
+
+# Fire TV / Android
+firetv/.gradle/
+firetv/local.properties
+firetv/**/build/

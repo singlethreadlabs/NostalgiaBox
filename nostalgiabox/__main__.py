@@ -11,6 +11,7 @@ from typing import List, Optional
 from . import __version__
 from .channel import build_lineup
 from .config import Config, ConfigError, load_config
+from .mpv_loader import load_mpv
 
 log = logging.getLogger("nostalgiabox")
 
@@ -64,8 +65,8 @@ def _cmd_check(config: Config) -> int:
 def _list_audio_devices() -> int:
     """Print mpv's available audio output devices, one 'name  -  description' per line."""
     try:
-        import mpv  # type: ignore
-    except ImportError:
+        mpv = load_mpv()
+    except (ImportError, OSError):
         print("python-mpv/libmpv not installed; on the Pi try: mpv --audio-device=help")
         return 1
     try:

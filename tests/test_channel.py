@@ -112,6 +112,39 @@ def test_advance_continues_shuffle(tmp_path):
     assert len(seen) == 4  # every episode shown before repeats
 
 
+def test_advance_balances_shows_before_repeating(tmp_path):
+    large = make_show(tmp_path, "large", 8)
+    small = make_show(tmp_path, "small", 1)
+    from nostalgiabox.config import ChannelConfig
+
+    pools = {
+        str(large): scan_episodes(large, [".mp4"]),
+        str(small): scan_episodes(small, [".mp4"]),
+    }
+    episodes = [episode for pool in pools.values() for episode in pool]
+    config = ChannelConfig(number=3, name="Balanced", path=large, shows=(large, small))
+    channel = Channel(config, episodes, rng=random.Random(0), episode_pools=pools)
+
+    first_round = [channel.tune_in().path.parent, channel.advance().path.parent]
+    second_round = [channel.advance().path.parent, channel.advance().path.parent]
+
+    assert set(first_round) == {large, small}
+    assert set(second_round) == {large, small}
+
+
+def test_build_lineup_uses_explicit_show_pools(tmp_path):
+    large = make_show(tmp_path, "large", 5)
+    small = make_show(tmp_path, "small", 1)
+    config = config_from_dict(
+        {"channels": [{"number": 3, "name": "Balanced", "shows": [str(large), str(small)]}]}
+    )
+
+    channel = list(build_lineup(config, rng=random.Random(0)))[0]
+    selected = [channel.tune_in().path.parent, channel.advance().path.parent]
+
+    assert set(selected) == {large, small}
+
+
 def test_start_offset_fixed(tmp_path):
     ch = _channel(tmp_path, tune_in="random", start_offset_min=5.0, start_offset_max=5.0)
     assert ch.tune_in().start == 5.0
@@ -158,6 +191,25 @@ def test_broadcast_schedule_positions():
     assert sched.at(600.0).path == first.path
     # 50s into the cycle we should still be within the first item, offset 50.
     assert sched.at(50.0).start == 50.0
+
+
+def test_broadcast_schedule_balances_uneven_show_pools():
+    from pathlib import Path
+
+    small = [Path("small/one.mp4")]
+    large = [Path(f"large/{index}.mp4") for index in range(4)]
+    episodes = small + large
+    schedule = BroadcastSchedule(
+        episodes,
+        [60.0] * len(episodes),
+        epoch=0.0,
+        rng=random.Random(0),
+        episode_pools={"small": small, "large": large},
+    )
+
+    parents = [schedule.at(index * 60).path.parent.name for index in range(8)]
+    assert parents.count("small") == parents.count("large") == 4
+    assert all(left != right for left, right in zip(parents, parents[1:]))
 
 
 def test_broadcast_tune_in_uses_real_time(tmp_path, monkeypatch):

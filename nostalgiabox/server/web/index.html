@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NostalgiaBox</title>
+    <link rel="stylesheet" href="/styles.css?v=3">
+  </head>
+  <body>
+    <main class="television">
+      <video id="player" autoplay playsinline></video>
+      <div id="static" class="static" aria-hidden="true"></div>
+      <section id="channel-bug" class="channel-bug" aria-live="polite">
+        <strong id="channel-number">CH --</strong>
+        <span id="channel-name">TUNING</span>
+        <small id="program-title"></small>
+      </section>
+      <section id="error" class="error" hidden></section>
+      <nav class="controls" aria-label="Playback controls">
+        <button id="down" type="button" aria-label="Previous channel">CH−</button>
+        <form id="channel-form">
+          <label for="channel-input">Channel</label>
+          <input id="channel-input" inputmode="numeric" pattern="[0-9]*">
+        </form>
+        <button id="up" type="button" aria-label="Next channel">CH+</button>
+        <button id="play" type="button">Play</button>
+        <button id="mute" type="button">Mute</button>
+        <button id="fullscreen" type="button">Fullscreen</button>
+      </nav>
+    </main>
+    <script src="/app.js?v=6" defer></script>
+  </body>
+</html>

@@ -2,6 +2,10 @@
 
 **Turn a Raspberry Pi into a retro TV for your kids.**
 
+> Running the media server away from the TV? See the
+> [headless Docker homelab deployment](docs/HOMELAB.md) for shared persistent
+> channels, adaptive streaming, and the browser prototype.
+
 NostalgiaBox plays folders of old children's shows off an SD card as if they were
 real TV **channels**. Flip to a channel and a show is already playing (starting a
 few seconds in, like you just tuned in); when an episode ends, the next one rolls
@@ -128,6 +132,83 @@ folders on it from your computer, copy your episodes in, plug it into the Pi, an
 copy them over (ask for the exact copy commands if you need them). Any common
 video format works (`.mp4`, `.mkv`, `.avi`, `.m4v`, …), and season sub-folders
 are fine.
+
+Before copying a large library, run the read-only optimization analyzer:
+
+```bash
+python3 scripts/media-optimize.py /path/to/shows
+```
+
+It uses `ffprobe` to identify oversized files, resolutions above 480p, and
+formats that require browser transcoding. It does not modify media. The reported
+savings are a planning estimate based on H.264 CRF 24, AAC audio at 96 kbps,
+and a 480p height cap; actual encoded sizes depend on the source. Use
+`--max-height 720` for a higher-resolution library or `--json` for
+machine-readable results. Text output shows the 25 highest-impact candidates by
+default; pass `--limit 0` to list every candidate.
+
+Channel folders may contain symlinks back to the source library. The analyzer
+resolves and deduplicates those aliases so reported file counts and savings
+represent physical source files rather than every channel placement.
+
+To audit inconsistent episode volume, add `--loudness`:
+
+```bash
+python3 scripts/media-optimize.py /path/to/shows --loudness --json > media-audit.json
+```
+
+This fully decodes each audio stream and measures EBU R128 loudness, so it can
+take roughly the total runtime of the library and is intentionally opt-in. It
+remains read-only. The report recommends normalization when integrated loudness
+is more than 1 LU from the -16 LUFS target or true peak exceeds -1.5 dBTP.
+Measure first, then normalize only flagged files in a separate staging directory.
+When video already needs encoding, combine the video and audio work in one pass;
+otherwise copy the video stream and re-encode only the audio. Never overwrite the
+source library until staged outputs have been checked for duration, streams,
+sync, and representative picture and sound quality.
+
+Create those reviewed outputs with the staging processor:
+
+```bash
+python3 scripts/media-stage.py /path/to/show \
+  --output-dir .media-staging/show-crf24-480p
+```
+
+The output directory must be empty. The processor measures the first audio
+stream, applies two-pass loudness normalization when needed, encodes oversized
+or incompatible video as H.264 CRF 24, converts audio to AAC 128 kbps, and caps
+video at 480p without upscaling. Efficient H.264 video is copied unchanged. Each
+output is fully decoded and measured again; a duration, decode, loudness, or
+true-peak failure stops the run. `manifest.json` records the actions and marks
+the files as staged for review—it never replaces source files.
+
+Long batches use two simultaneous jobs by default and update the manifest after
+every completed file. Resume an interrupted batch without reprocessing verified
+outputs:
+
+```bash
+python3 scripts/media-stage.py /path/to/show \
+  --output-dir .media-staging/show-crf24-480p --resume --jobs 4
+```
+
+All audio tracks and text subtitles are retained. Unsupported bitmap subtitle
+formats are reported as per-file failures instead of being silently discarded;
+other files continue processing and can be resumed after the issue is addressed.
+
+For a reversible quality comparison before processing a long recording:
+
+```bash
+python3 scripts/media-stage.py episode.mp4 \
+  --output-dir .media-staging/episode-sample \
+  --start 600 --sample-seconds 60 --crf 24
+```
+
+Use `--crf 22` for a larger, more conservative comparison or `--max-height 720`
+when the source visibly benefits from the extra resolution.
+
+For full television episodes, use `--target-lufs -20` to preserve program
+dynamics. The default -16 LUFS target is intended for short bumpers and other
+promotional clips.
 
 ### Part F — Set up your channels
 

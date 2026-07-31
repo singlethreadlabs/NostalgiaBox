@@ -16,7 +16,7 @@ see the same episode back-to-back across a cycle boundary.
 from __future__ import annotations
 
 import random
-from typing import Generic, List, Optional, Sequence, TypeVar
+from typing import Dict, Generic, List, Mapping, Optional, Sequence, TypeVar
 
 T = TypeVar("T")
 
@@ -68,4 +68,28 @@ class ShuffleBag(Generic[T]):
         return len(self._queue)
 
 
-__all__ = ["ShuffleBag"]
+class BalancedShuffle(Generic[T]):
+    """Select shows evenly while shuffling episodes independently per show."""
+
+    def __init__(
+        self,
+        pools: Mapping[str, Sequence[T]],
+        rng: Optional[random.Random] = None,
+    ) -> None:
+        self._rng = rng or random.Random()
+        self._episodes: Dict[str, ShuffleBag[T]] = {
+            key: ShuffleBag(items, self._rng) for key, items in pools.items() if items
+        }
+        self._shows = ShuffleBag(list(self._episodes), self._rng)
+
+    @property
+    def is_empty(self) -> bool:
+        return not self._episodes
+
+    def next(self) -> T:
+        if self.is_empty:
+            raise IndexError("cannot draw from an empty balanced shuffle")
+        return self._episodes[self._shows.next()].next()
+
+
+__all__ = ["BalancedShuffle", "ShuffleBag"]

@@ -1,0 +1,160 @@
+@font-face {
+  font-family: "VT323";
+  src: url("/fonts/VT323-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: "VT323", ui-monospace, monospace;
+  background: #090909;
+  color: #e8e5dc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #090909;
+}
+
+.television {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  overflow: hidden;
+  place-items: center;
+}
+
+.television::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: radial-gradient(
+    ellipse at center,
+    transparent 64%,
+    rgb(0 0 0 / 16%) 100%
+  );
+}
+
+video {
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  object-fit: contain;
+}
+
+.channel-bug {
+  position: absolute;
+  z-index: 2;
+  top: 7vh;
+  left: 6vw;
+  display: grid;
+  padding: 0.5rem 0.8rem;
+  color: #e8e5dc;
+  font-size: clamp(1.5rem, 4vw, 3rem);
+  line-height: 0.9;
+  opacity: 0;
+  text-shadow: 2px 2px 0 rgb(0 0 0 / 92%);
+  transition: opacity 180ms ease;
+}
+
+.channel-bug.visible {
+  opacity: 1;
+}
+
+.channel-bug small {
+  max-width: 70vw;
+  margin-top: 0.5rem;
+  font-size: 0.55em;
+}
+
+.static {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-radial-gradient(#fff 0 1px, #000 1px 3px);
+  background-size: 5px 5px;
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+.static.active {
+  animation: flash 300ms steps(2);
+}
+
+@keyframes flash {
+  0%, 70% { opacity: 0.2; transform: translateX(-2px); }
+  35%, 100% { opacity: 0.03; transform: translateX(2px); }
+}
+
+.controls {
+  position: absolute;
+  z-index: 4;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #66645e;
+  border-radius: 0.5rem;
+  background: rgb(12 12 12 / 82%);
+  opacity: 0.25;
+  transition: opacity 150ms ease;
+}
+
+.controls:hover,
+.controls:focus-within {
+  opacity: 1;
+}
+
+button,
+input {
+  min-height: 2.5rem;
+  border: 1px solid #85827a;
+  border-radius: 0.25rem;
+  background: #181817;
+  color: #e8e5dc;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  padding-inline: 0.75rem;
+}
+
+form {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+input {
+  width: 4rem;
+  padding-inline: 0.5rem;
+}
+
+.error {
+  position: absolute;
+  max-width: min(40rem, 85vw);
+  padding: 1rem;
+  border: 1px solid #ff6b6b;
+  background: rgb(20 0 0 / 90%);
+  color: #ffb1b1;
+  font-family: system-ui, sans-serif;
+}
+
+@media (max-width: 700px) {
+  .controls {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    flex-wrap: wrap;
+  }
+}

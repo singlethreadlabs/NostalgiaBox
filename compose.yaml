@@ -1,0 +1,30 @@
+services:
+  nostalgiabox:
+    build:
+      context: .
+    image: nostalgiabox:local
+    container_name: nostalgiabox
+    restart: unless-stopped
+    ports:
+      # Set NOSTALGIABOX_BIND_IP to the server's LAN address. The default is
+      # loopback-only so an unset variable cannot expose the service broadly.
+      - "${NOSTALGIABOX_BIND_IP:-127.0.0.1}:8080:8080"
+    environment:
+      NOSTALGIABOX_CONFIG: /config/config.yaml
+      NOSTALGIABOX_DATABASE: /data/nostalgiabox.db
+      NOSTALGIABOX_CACHE: /cache
+      NOSTALGIABOX_MEDIA_ROOT: /media
+      NOSTALGIABOX_SESSION_TTL: "300"
+    volumes:
+      - /srv/media:/media:ro
+      - /srv/nostalgiabox/config:/config:ro
+      - /srv/nostalgiabox/data:/data
+      - /srv/nostalgiabox/cache:/cache
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+

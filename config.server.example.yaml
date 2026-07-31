@@ -1,0 +1,20 @@
+schedule:
+  timezone: America/Chicago
+  horizon_hours: 24
+
+start_channel: 2
+scan_recursive: true
+
+channels:
+  - number: 2
+    name: Nick 2001
+    # The scheduler rotates between these folders first, then picks an episode,
+    # so a large show cannot dominate a smaller show.
+    shows:
+      - /media/tv/Rugrats
+      - /media/tv/Hey Arnold
+      - /media/tv/SpongeBob
+    bumpers:
+      - /media/nostalgia/nick/bumpers
+    commercials:
+      - /media/nostalgia/commercials/2000-2003

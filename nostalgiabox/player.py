@@ -19,6 +19,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
+from .mpv_loader import load_mpv
+
 log = logging.getLogger(__name__)
 
 # Reason strings passed to the "playback finished" callback.
@@ -117,8 +119,8 @@ class MpvPlayer(Player):
         extra_options: Optional[dict] = None,
     ) -> None:
         try:
-            import mpv  # type: ignore
-        except ImportError as exc:  # pragma: no cover - only on machines w/o libmpv
+            mpv = load_mpv()
+        except (ImportError, OSError) as exc:  # pragma: no cover - host dependency
             raise RuntimeError(
                 "python-mpv/libmpv is not installed. On the Raspberry Pi run "
                 "`scripts/install.sh` or `pip install .[pi]` and ensure libmpv "
