@@ -21,6 +21,7 @@ nostalgiabox/assets/*.mp4
 Thumbs.db
 
 downloads
+media
 .media-staging/
 .media-backups/
 

@@ -77,7 +77,6 @@ SHOWS = {
         "The Fairly OddParents",
         "the-fairly-oddparents-the-complete-series_202507",
     ),
-    "inspector-gadget": Show("Inspector Gadget", "inspector-gadget"),
     "iron-man": Show("Iron Man (1994)", "iron-man-1994"),
     "pokemon": Show("Pokémon", "pokemon"),
     "sonic-x": Show("Sonic X", "sonic-x"),
@@ -119,19 +118,19 @@ CHANNELS = {
         "suite-life", "thats-so-raven", "wizards",
     ),
     "12-saturday-signal": (
-        "courage", "dexters-lab", "inspector-gadget", "iron-man", "kablam",
+        "courage", "dexters-lab", "iron-man", "kablam",
         "recess", "super-mario-world", "the-legend-of-zelda", "x-men",
     ),
     "13-powerhouse-kids": (
         "american-dragon", "iron-man", "kim-possible", "tmnt-2003", "x-men",
     ),
     "14-sick-day-tv": (
-        "arthur", "blues-clues", "dragon-tales", "inspector-gadget",
+        "arthur", "blues-clues", "dragon-tales",
         "nick-jr-broadcasts", "winnie-the-pooh",
     ),
     "15-saturday-club": (
         "american-dragon", "arthur", "dragon-tales", "kablam", "kim-possible",
-        "courage", "dexters-lab", "fairly-oddparents", "inspector-gadget",
+        "courage", "dexters-lab", "fairly-oddparents",
         "lilo-and-stitch", "magic-school-bus", "pokemon", "proud-family", "recess",
         "sonic-x", "super-mario-world", "the-legend-of-zelda", "tmnt-2003", "x-men",
     ),

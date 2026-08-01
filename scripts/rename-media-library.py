@@ -21,6 +21,7 @@ SHOWS = {
     "x-men": "X-Men", "courage-the-cowardly-dog": "Courage the Cowardly Dog",
     "pokemon": "Pokémon", "iron-man-1994": "Iron Man (1994)",
     "legend-of-zelda": "The Legend of Zelda", "super-mario-world": "Super Mario World",
+    "spider-man-unlimited": "Spider-Man Unlimited",
 }
 
 
@@ -34,6 +35,12 @@ class Rename:
 def strip_release_tags(value: str) -> str:
     value = re.sub(r"\s*\[[^]]*(?:p|rip|web|x26|sx|rcvr)[^]]*]\s*", " ", value, flags=re.I)
     value = re.sub(r"\s*\((?:\d{3,4}p[^)]*|\d{4}p[^)]*|480p[^)]*)\)\s*", " ", value, flags=re.I)
+    value = re.sub(
+        r"[ ._-]+(?:\d{3,4}p)(?:[ ._-]+(?:WEB[ ._-]?DL|WEBRip|DVDRip|BluRay|x26[45]))?.*$",
+        "",
+        value,
+        flags=re.I,
+    )
     value = re.sub(r"[._](?:CBS|CBSA|DSNP)[._-]WEB-DL.*$", "", value, flags=re.I)
     value = re.sub(r"\s+(?:DSNP|WEB-DL|DVDRip|x26[45]).*$", "", value, flags=re.I)
     return value.strip(" ._-")
@@ -52,6 +59,10 @@ def season_episode(folder: str, number: int) -> tuple[int | None, int]:
         "magic-schoolbus": (13, 13, 13, 13),
         "x-men": (13, 13, 19, 17, 14),
         "iron-man-1994": (13, 13),
+        "legend-of-zelda": (13,),
+        "spider-man-unlimited": (13,),
+        "super-mario-world": (13,),
+        "kablam": (13, 13, 13, 9),
     }.get(folder)
     if not boundaries:
         return None, number
@@ -94,6 +105,21 @@ def canonical_name(path: Path, root: Path) -> tuple[str, str]:
     elif "Dragon Ball" in relative.parts:
         show = "Dragon Ball"
 
+    if folder == "sonic-x":
+        season_folder = next(
+            (part for part in relative.parts if re.fullmatch(r"Season \d+", part, re.I)),
+            None,
+        )
+        sonic = re.match(r"Sonic X - E\d+ - (\d{1,2})\s+(.+)", stem, re.I)
+        if season_folder and sonic:
+            season = int(re.search(r"\d+", season_folder).group())
+            episode = int(sonic.group(1))
+            title = words(sonic.group(2))
+            return (
+                f"Sonic X - S{season:02d}E{episode:02d} - {title}{path.suffix.lower()}",
+                "high",
+            )
+
     match = re.search(r"(?<![A-Za-z0-9])S(\d{1,2})[ ._-]*E(\d{1,3})(?:E\d{1,3})?", stem, re.I)
     if not match:
         match = re.search(r"(?<!\d)(\d{1,2})x(\d{1,3})(?!\d)", stem, re.I)
@@ -103,9 +129,17 @@ def canonical_name(path: Path, root: Path) -> tuple[str, str]:
         title = stem[match.end():]
     else:
         showless = re.sub(rf"^{re.escape(show or '')}\s*", "", stem, flags=re.I) if show else stem
-        global_match = re.match(r"(?:Episode|EP|E)?\s*(\d{1,3})\s*[- ]+\s*(.*)", showless, re.I)
+        global_match = re.match(
+            r"(?:Episode|Ep\.?|EP|E)?\s*(\d{1,3})(?:\s+LR)?\s*[- ]*\s*(.*)",
+            showless.lstrip(" -–—"),
+            re.I,
+        )
         if global_match and show:
-            season, episode = season_episode(folder, int(global_match.group(1)))
+            absolute = int(global_match.group(1))
+            if folder == "pokemon" and 423 <= absolute <= 468:
+                season, episode = 9, absolute - 422
+            else:
+                season, episode = season_episode(folder, absolute)
             title = global_match.group(2)
         else:
             title = stem
@@ -142,12 +176,20 @@ def build_plan(root: Path) -> list[Rename]:
     return renames
 
 
-def apply(renames: list[Rename], root: Path) -> Path:
-    manifest = root / "rename-manifest.csv"
+def apply(renames: list[Rename], root: Path, manifest: Path | None = None) -> Path:
+    manifest = manifest or root / "rename-manifest.csv"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
     with manifest.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.writer(stream)
         writer.writerow(("confidence", "source", "destination"))
-        writer.writerows((item.confidence, item.source, item.destination) for item in renames)
+        writer.writerows(
+            (
+                item.confidence,
+                item.source.relative_to(root),
+                item.destination.relative_to(root),
+            )
+            for item in renames
+        )
     staged = []
     for item in renames:
         temporary = item.source.with_name(f".{uuid.uuid4().hex}.rename")
@@ -156,6 +198,31 @@ def apply(renames: list[Rename], root: Path) -> Path:
     for temporary, destination in staged:
         temporary.rename(destination)
     return manifest
+
+
+def undo(manifest: Path, root: Path) -> int:
+    with manifest.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+
+    renames: list[Rename] = []
+    for row in reversed(rows):
+        source = root / row["destination"]
+        destination = root / row["source"]
+        if not source.is_file():
+            raise FileNotFoundError(f"renamed file is missing: {source}")
+        if destination.exists():
+            raise FileExistsError(f"original path is occupied: {destination}")
+        renames.append(Rename(source, destination, row["confidence"]))
+
+    # Use the same two-phase strategy so case-only renames work on macOS.
+    staged: list[tuple[Path, Path]] = []
+    for item in renames:
+        temporary = item.source.with_name(f".{uuid.uuid4().hex}.rename")
+        item.source.rename(temporary)
+        staged.append((temporary, item.destination))
+    for temporary, destination in staged:
+        temporary.rename(destination)
+    return len(renames)
 
 
 def write_review(renames: list[Rename], root: Path) -> Path:
@@ -171,15 +238,27 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", nargs="?", type=Path, default=Path("downloads"))
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument(
+        "--include-review",
+        action="store_true",
+        help="also apply ambiguous cleanup suggestions; inspect the dry run first",
+    )
+    parser.add_argument("--manifest", type=Path, help="write the rename manifest here")
+    parser.add_argument("--undo", type=Path, metavar="MANIFEST", help="undo a prior rename manifest")
     args = parser.parse_args()
     root = args.root.resolve()
+    if args.undo:
+        count = undo(args.undo.resolve(), root)
+        print(f"restored={count} manifest={args.undo.resolve()}")
+        return 0
     renames = build_plan(root)
     counts = {key: sum(item.confidence == key for item in renames) for key in ("high", "medium", "review")}
     print(f"planned={len(renames)} high={counts['high']} medium={counts['medium']} review={counts['review']}")
     if args.apply:
-        approved = [item for item in renames if item.confidence != "review"]
-        review = [item for item in renames if item.confidence == "review"]
-        print(f"manifest={apply(approved, root)}")
+        approved = renames if args.include_review else [item for item in renames if item.confidence != "review"]
+        review = [] if args.include_review else [item for item in renames if item.confidence == "review"]
+        manifest = args.manifest.resolve() if args.manifest else None
+        print(f"renamed={len(approved)} manifest={apply(approved, root, manifest)}")
         print(f"review={write_review(review, root)}")
     else:
         for item in renames[:40]: print(f"[{item.confidence}] {item.source.name} -> {item.destination.name}")

@@ -38,7 +38,61 @@
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/connect_title" android:textColor="@color/white" android:textSize="28sp" />
         <EditText android:id="@+id/server_url" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:hint="@string/server_url_hint" android:inputType="textUri" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
         <Button android:id="@+id/connect_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:layout_marginTop="12dp" android:text="@string/connect" />
+        <LinearLayout android:id="@+id/settings_actions" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="end" android:orientation="horizontal" android:visibility="gone">
+            <Button android:id="@+id/change_pin_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/change_pin" />
+            <Button android:id="@+id/settings_cancel_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/back" />
+        </LinearLayout>
         <TextView android:id="@+id/setup_error" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textColor="#FFFF7070" android:textSize="16sp" android:visibility="gone" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pin_setup_panel"
+        android:layout_width="480dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/panel_background"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <TextView android:id="@+id/pin_setup_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/create_parent_pin" android:textColor="@color/white" android:textSize="28sp" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/pin_setup_description" android:textColor="@color/white" android:textSize="16sp" />
+        <EditText android:id="@+id/new_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:hint="@string/four_digit_pin" android:inputType="numberPassword" android:maxLength="4" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
+        <EditText android:id="@+id/confirm_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:hint="@string/confirm_pin" android:inputType="numberPassword" android:maxLength="4" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
+        <TextView android:id="@+id/pin_setup_error" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="#FFFF7070" android:textSize="16sp" android:visibility="gone" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="end" android:orientation="horizontal">
+            <Button android:id="@+id/pin_setup_cancel_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/back" android:visibility="gone" />
+            <Button android:id="@+id/save_pin_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/save_pin" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pin_entry_panel"
+        android:layout_width="420dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/panel_background"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/parent_access" android:textColor="@color/white" android:textSize="28sp" />
+        <EditText android:id="@+id/parent_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:hint="@string/four_digit_pin" android:inputType="numberPassword" android:maxLength="4" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
+        <TextView android:id="@+id/pin_entry_error" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="#FFFF7070" android:textSize="16sp" android:visibility="gone" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="end" android:orientation="horizontal">
+            <Button android:id="@+id/pin_cancel_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/cancel" />
+            <Button android:id="@+id/unlock_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/unlock" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/parent_menu_panel"
+        android:layout_width="460dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/panel_background"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/parent_mode" android:textColor="@color/white" android:textSize="28sp" />
+        <Button android:id="@+id/fire_home_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="@string/open_fire_home" />
+        <Button android:id="@+id/parent_settings_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/nostalgiabox_settings" />
+        <Button android:id="@+id/relock_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/lock_again" />
     </LinearLayout>
 
     <LinearLayout
@@ -52,7 +106,7 @@
         <TextView android:id="@+id/playback_error" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="@color/white" android:textSize="20sp" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:gravity="end" android:orientation="horizontal">
             <Button android:id="@+id/retry_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/retry" />
-            <Button android:id="@+id/settings_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/settings" />
+            <Button android:id="@+id/settings_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp" android:text="@string/parent_access" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

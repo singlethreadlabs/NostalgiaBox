@@ -5,8 +5,10 @@
 __pycache__
 *.py[cod]
 questionbox
+downloads
+firetv
 tests
 config.yaml
 data
 cache
-
+.media-*
