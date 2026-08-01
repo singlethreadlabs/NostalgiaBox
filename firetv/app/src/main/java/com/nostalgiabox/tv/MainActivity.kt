@@ -5,8 +5,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -16,20 +18,28 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.ui.PlayerView
+import java.io.IOException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.ceil
 
-class MainActivity : AppCompatActivity(), Player.Listener {
+@UnstableApi
+class MainActivity : AppCompatActivity(), Player.Listener, AnalyticsListener {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val pinLimiter = PinAttemptLimiter(SystemClock::elapsedRealtime)
     private val parentAccess = ParentAccessController()
+    private val channelTuneQueue = ChannelTuneQueue()
     private lateinit var pinStore: PinStore
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
+    private lateinit var tuningStatic: TuningStaticView
     private lateinit var setupPanel: LinearLayout
     private lateinit var settingsActions: LinearLayout
     private lateinit var errorPanel: LinearLayout
@@ -62,6 +72,11 @@ class MainActivity : AppCompatActivity(), Player.Listener {
     private var changingPin = false
     private var menuDownTime: Long? = null
     private var restoreErrorAfterPin = false
+    private var wasBackgrounded = false
+    private var currentDeliveryMode: String? = null
+    private var currentProgramTitle: String? = null
+    private var currentProgramChannel: Int? = null
+    private var estimatedBitrate: Long? = null
 
     private val parentUnlocked: Boolean
         get() = parentAccess.isUnlocked
@@ -73,6 +88,7 @@ class MainActivity : AppCompatActivity(), Player.Listener {
         pinStore = PinStore(preferences())
         player = ExoPlayer.Builder(this).build().also {
             it.addListener(this)
+            it.addAnalyticsListener(this)
             playerView.player = it
         }
         bindActions()
@@ -86,11 +102,38 @@ class MainActivity : AppCompatActivity(), Player.Listener {
 
     override fun onResume() {
         super.onResume()
+        hideSystemUi()
         if (parentUnlocked) lockKidMode(resumePlayback = true)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemUi()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!wasBackgrounded) return
+        wasBackgrounded = false
+        if (pinStore.hasPin() && lineup.isNotEmpty()) {
+            lockKidMode(resumePlayback = true)
+        }
+    }
+
+    override fun onStop() {
+        cancelMenuHold()
+        cancelPendingTune()
+        if (::player.isInitialized) stopPlaybackAndRelease()
+        setPlaybackKeepsScreenAwake(false)
+        parentAccess.relock()
+        changingPin = false
+        wasBackgrounded = true
+        super.onStop()
     }
 
     private fun bindViews() {
         playerView = findViewById(R.id.player_view)
+        tuningStatic = findViewById(R.id.tuning_static)
         setupPanel = findViewById(R.id.setup_panel)
         settingsActions = findViewById(R.id.settings_actions)
         errorPanel = findViewById(R.id.error_panel)
@@ -187,11 +230,16 @@ class MainActivity : AppCompatActivity(), Player.Listener {
         }
     }
 
-    private fun tune(index: Int) {
+    private fun tune(index: Int, showFeedback: Boolean = true) {
         if (lineup.isEmpty()) return
+        cancelPendingTune()
         currentIndex = Math.floorMod(index, lineup.size)
         val generation = ++tuneGeneration
         val selected = lineup[currentIndex]
+        if (showFeedback) {
+            showTuning(selected)
+            tuningStatic.flash()
+        }
         val currentApi = api ?: return
         executor.execute {
             try {
@@ -204,6 +252,9 @@ class MainActivity : AppCompatActivity(), Player.Listener {
                     }
                     pendingSession?.id?.let(::releaseInBackground)
                     pendingSession = session
+                    currentDeliveryMode = session.deliveryMode
+                    currentProgramTitle = session.program.title
+                    currentProgramChannel = selected.number
                     player.setMediaItem(MediaItem.fromUri(playbackUrl))
                     if (session.deliveryMode == "direct") {
                         player.seekTo((session.initialOffsetSeconds * 1_000).toLong())
@@ -223,6 +274,9 @@ class MainActivity : AppCompatActivity(), Player.Listener {
     }
 
     override fun onPlaybackStateChanged(playbackState: Int) {
+        if (playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_READY) {
+            logPlaybackState(PlayerState.name(playbackState))
+        }
         when (playbackState) {
             Player.STATE_READY -> {
                 val readySession = pendingSession ?: return
@@ -240,7 +294,24 @@ class MainActivity : AppCompatActivity(), Player.Listener {
         }
     }
 
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        setPlaybackKeepsScreenAwake(isPlaying)
+    }
+
+    private fun setPlaybackKeepsScreenAwake(keepAwake: Boolean) {
+        if (keepAwake) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     override fun onPlayerError(error: PlaybackException) {
+        Log.e(
+            PLAYBACK_LOG_TAG,
+            "event=player_error code=${error.errorCodeName} ${playbackSnapshot()}",
+            error,
+        )
         pendingSession?.id?.let(::releaseInBackground)
         pendingSession = null
         if (retryAvailable) {
@@ -250,6 +321,52 @@ class MainActivity : AppCompatActivity(), Player.Listener {
             showPlaybackError("Playback failed: ${error.errorCodeName}")
         }
     }
+
+    override fun onBandwidthEstimate(
+        eventTime: AnalyticsListener.EventTime,
+        totalLoadTimeMs: Int,
+        totalBytesLoaded: Long,
+        bitrateEstimate: Long,
+    ) {
+        estimatedBitrate = bitrateEstimate
+    }
+
+    override fun onDroppedVideoFrames(
+        eventTime: AnalyticsListener.EventTime,
+        droppedFrames: Int,
+        elapsedMs: Long,
+    ) {
+        if (droppedFrames > 0) {
+            Log.w(
+                PLAYBACK_LOG_TAG,
+                "event=dropped_frames count=$droppedFrames elapsed_ms=$elapsedMs ${playbackSnapshot()}",
+            )
+        }
+    }
+
+    override fun onLoadError(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData,
+        error: IOException,
+        wasCanceled: Boolean,
+    ) {
+        Log.w(
+            PLAYBACK_LOG_TAG,
+            "event=load_error canceled=$wasCanceled uri=${loadEventInfo.uri} ${playbackSnapshot()}",
+            error,
+        )
+    }
+
+    private fun logPlaybackState(state: String) {
+        Log.i(PLAYBACK_LOG_TAG, "event=state state=$state ${playbackSnapshot()}")
+    }
+
+    private fun playbackSnapshot(): String =
+        "channel=${currentProgramChannel ?: -1} " +
+            "title=${currentProgramTitle.orEmpty()} mode=${currentDeliveryMode.orEmpty()} " +
+            "position_ms=${player.currentPosition} buffered_ms=${player.totalBufferedDuration} " +
+            "bitrate_bps=${estimatedBitrate ?: -1}"
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {
@@ -267,13 +384,13 @@ class MainActivity : AppCompatActivity(), Player.Listener {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
                 retryAvailable = true
                 currentIndex = ChannelNavigator.move(currentIndex, 1, lineup.size)
-                tune(currentIndex)
+                queueTune(currentIndex)
                 true
             }
             KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
                 retryAvailable = true
                 currentIndex = ChannelNavigator.move(currentIndex, -1, lineup.size)
-                tune(currentIndex)
+                queueTune(currentIndex)
                 true
             }
             KeyEvent.KEYCODE_DPAD_CENTER,
@@ -284,6 +401,36 @@ class MainActivity : AppCompatActivity(), Player.Listener {
             }
             else -> super.dispatchKeyEvent(event)
         }
+    }
+
+    private fun queueTune(index: Int) {
+        ++tuneGeneration
+        val selected = lineup[index]
+        showTuning(selected)
+        tuningStatic.flash()
+        channelTuneQueue.request(index)
+        mainHandler.removeCallbacks(commitPendingTune)
+        mainHandler.postDelayed(commitPendingTune, ChannelTuneQueue.DELAY_MILLIS)
+    }
+
+    private val commitPendingTune = Runnable {
+        channelTuneQueue.consume()?.let { tune(it, showFeedback = false) }
+    }
+
+    private fun cancelPendingTune() {
+        mainHandler.removeCallbacks(commitPendingTune)
+        channelTuneQueue.cancel()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun hideSystemUi() {
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
     }
 
     private fun handleMenuKey(event: KeyEvent) {
@@ -439,15 +586,34 @@ class MainActivity : AppCompatActivity(), Player.Listener {
     }
 
     private fun showChannel(channel: ChannelInfo, program: ProgramInfo) {
-        channelNumber.text = getString(R.string.channel_number_format, channel.number)
-        channelName.text = channel.name
+        channelNumber.text = RetroChannelText.number(channel.number)
+        channelName.text = RetroChannelText.name(channel.name)
         programTitle.text = program.title
+        showChannelOverlay()
+    }
+
+    private fun showTuning(channel: ChannelInfo) {
+        channelNumber.text = RetroChannelText.number(channel.number)
+        channelName.text = RetroChannelText.name(channel.name)
+        programTitle.setText(R.string.tuning)
+        showChannelOverlay()
+    }
+
+    private fun showChannelOverlay() {
+        channelOverlay.animate().cancel()
+        channelOverlay.alpha = 1f
         channelOverlay.visibility = View.VISIBLE
         mainHandler.removeCallbacks(hideOverlay)
         mainHandler.postDelayed(hideOverlay, 4_000)
     }
 
-    private val hideOverlay = Runnable { channelOverlay.visibility = View.GONE }
+    private val hideOverlay = Runnable {
+        channelOverlay.animate()
+            .alpha(0f)
+            .setDuration(180)
+            .withEndAction { channelOverlay.visibility = View.GONE }
+            .start()
+    }
 
     private fun showSettings(parentAccess: Boolean) {
         if (parentAccess && !parentUnlocked) return
@@ -494,6 +660,7 @@ class MainActivity : AppCompatActivity(), Player.Listener {
             parentMenuPanel.visibility == View.VISIBLE
 
     private fun stopPlaybackAndRelease() {
+        cancelPendingTune()
         ++tuneGeneration
         player.stop()
         pendingSession?.id?.let(::releaseInBackground)
@@ -527,5 +694,16 @@ class MainActivity : AppCompatActivity(), Player.Listener {
     companion object {
         private const val PREFERENCES = "nostalgiabox"
         private const val SERVER_URL = "server_url"
+        private const val PLAYBACK_LOG_TAG = "NostalgiaPlayback"
+    }
+}
+
+private object PlayerState {
+    fun name(state: Int): String = when (state) {
+        Player.STATE_IDLE -> "idle"
+        Player.STATE_BUFFERING -> "buffering"
+        Player.STATE_READY -> "ready"
+        Player.STATE_ENDED -> "ended"
+        else -> "unknown"
     }
 }

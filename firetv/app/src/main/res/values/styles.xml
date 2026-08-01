@@ -3,8 +3,26 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowNoTitle">true</item>
-        <item name="android:colorAccent">@color/phosphor</item>
+        <item name="android:colorAccent">@color/tv_orange</item>
         <item name="android:navigationBarColor">@color/black</item>
         <item name="android:windowBackground">@color/black</item>
+        <item name="android:buttonStyle">@style/Widget.NostalgiaBox.Button</item>
+    </style>
+
+    <style name="Widget.NostalgiaBox.Button" parent="android:style/Widget.Button">
+        <item name="android:background">@drawable/retro_button</item>
+        <item name="android:fontFamily">@font/vt323_regular</item>
+        <item name="android:textColor">@color/retro_button_text</item>
+        <item name="android:textSize">22sp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:minWidth">120dp</item>
+        <item name="android:paddingLeft">20dp</item>
+        <item name="android:paddingRight">20dp</item>
+    </style>
+
+    <style name="TextAppearance.NostalgiaBox.PanelTitle" parent="android:style/TextAppearance.Material.Headline">
+        <item name="android:fontFamily">@font/vt323_regular</item>
+        <item name="android:textColor">@color/tv_cream</item>
+        <item name="android:textSize">32sp</item>
     </style>
 </resources>

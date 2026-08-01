@@ -6,6 +6,7 @@
     <string name="retry">Retry</string>
     <string name="settings">Settings</string>
     <string name="channel_number_format">CH %1$02d</string>
+    <string name="tuning">TUNING…</string>
     <string name="create_parent_pin">Create Parent PIN</string>
     <string name="change_parent_pin">Change Parent PIN</string>
     <string name="pin_setup_description">Choose four digits. Clearing the app data resets a forgotten PIN.</string>

@@ -124,6 +124,36 @@ def test_media_index_accepts_a_direct_bumper_file(tmp_path, fixed_probe):
     assert Path(indexed_bumper["path"]) == bumper
 
 
+def test_media_shared_across_channels_is_probed_once(tmp_path, monkeypatch):
+    media_root = tmp_path / "media"
+    shared_show = _make_media(media_root, "shows/shared", 2)
+    config = config_from_dict(
+        {
+            "channels": [
+                {"number": 2, "name": "First", "shows": [str(shared_show)]},
+                {"number": 3, "name": "Second", "shows": [str(shared_show)]},
+            ]
+        }
+    )
+    probes: list[Path] = []
+
+    def probe(path: Path) -> MediaProbe:
+        probes.append(path)
+        return MediaProbe(600.0, "mov,mp4", "h264", "aac")
+
+    monkeypatch.setattr("nostalgiabox.server.media.probe_media", probe)
+    database = Database(tmp_path / "server.db")
+    database.initialize()
+
+    assert MediaIndexer(database, config, media_root).refresh() == 2
+    assert len(probes) == 2
+    with database.connect() as connection:
+        assignments = connection.execute(
+            "SELECT COUNT(*) AS count FROM channel_media"
+        ).fetchone()["count"]
+    assert assignments == 4
+
+
 def test_show_rotation_balances_uneven_folders(tmp_path, fixed_probe):
     media_root = tmp_path / "media"
     large_show = _make_media(media_root, "shows/large", 8)

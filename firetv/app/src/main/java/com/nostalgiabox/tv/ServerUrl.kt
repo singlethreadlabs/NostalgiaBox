@@ -48,3 +48,21 @@ object ChannelNavigator {
         return Math.floorMod(currentIndex + delta, channelCount)
     }
 }
+
+class ChannelTuneQueue {
+    private var pendingIndex: Int? = null
+
+    fun request(index: Int) {
+        pendingIndex = index
+    }
+
+    fun consume(): Int? = pendingIndex.also { pendingIndex = null }
+
+    fun cancel() {
+        pendingIndex = null
+    }
+
+    companion object {
+        const val DELAY_MILLIS = 220L
+    }
+}

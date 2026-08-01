@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 import time
@@ -15,6 +16,9 @@ from nostalgiabox.config import Config
 from nostalgiabox.probe import DEFAULT_EPISODE_SECONDS
 
 from .database import Database
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -130,6 +134,11 @@ class MediaIndexer:
 
         now = time.time()
         active_paths = {str(path.resolve()) for _, _, _, path in assignments}
+        log.info(
+            "indexing %d unique media files across %d channel assignments",
+            len(active_paths),
+            len(assignments),
+        )
         with self.database.connect() as connection:
             connection.execute("DELETE FROM channel_media")
             existing = {
@@ -137,8 +146,11 @@ class MediaIndexer:
                 for row in connection.execute("SELECT * FROM media_items")
             }
             ids: dict[str, int] = {}
+            processed = 0
             for _, kind, _, path in assignments:
                 resolved = str(path.resolve())
+                if resolved in ids:
+                    continue
                 stat = path.stat()
                 row = existing.get(resolved)
                 if (
@@ -180,6 +192,9 @@ class MediaIndexer:
                         ).fetchone()["id"]
                     )
                 ids[resolved] = media_id
+                processed += 1
+                if processed % 100 == 0 or processed == len(active_paths):
+                    log.info("indexed %d/%d unique media files", processed, len(active_paths))
 
             for channel_number, kind, pool_key, path in assignments:
                 connection.execute(

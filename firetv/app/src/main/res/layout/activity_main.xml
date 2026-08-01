@@ -13,18 +13,28 @@
         app:show_buffering="when_playing"
         app:use_controller="false" />
 
+    <com.nostalgiabox.tv.RetroScreenOverlay
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <com.nostalgiabox.tv.TuningStaticView
+        android:id="@+id/tuning_static"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
     <LinearLayout
         android:id="@+id/channel_overlay"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_margin="32dp"
-        android:background="@drawable/panel_background"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="72dp"
+        android:layout_marginTop="64dp"
+        android:padding="12dp"
         android:orientation="vertical"
         android:visibility="gone">
-        <TextView android:id="@+id/channel_number" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/phosphor" android:textSize="28sp" android:textStyle="bold" />
-        <TextView android:id="@+id/channel_name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/white" android:textSize="22sp" />
-        <TextView android:id="@+id/program_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxWidth="420dp" android:textColor="@color/white" android:textSize="18sp" />
+        <TextView android:id="@+id/channel_number" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/vt323_regular" android:includeFontPadding="false" android:shadowColor="#EB000000" android:shadowDx="3" android:shadowDy="3" android:shadowRadius="0" android:textColor="@color/tv_warm_white" android:textSize="52sp" />
+        <TextView android:id="@+id/channel_name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/vt323_regular" android:includeFontPadding="false" android:shadowColor="#EB000000" android:shadowDx="3" android:shadowDy="3" android:shadowRadius="0" android:textColor="@color/tv_warm_white" android:textSize="40sp" />
+        <TextView android:id="@+id/program_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:fontFamily="@font/vt323_regular" android:includeFontPadding="false" android:maxWidth="760dp" android:maxLines="2" android:shadowColor="#EB000000" android:shadowDx="2" android:shadowDy="2" android:shadowRadius="0" android:textColor="@color/tv_warm_white" android:textSize="30sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -35,7 +45,7 @@
         android:background="@drawable/panel_background"
         android:orientation="vertical"
         android:visibility="gone">
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/connect_title" android:textColor="@color/white" android:textSize="28sp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/connect_title" android:textAppearance="@style/TextAppearance.NostalgiaBox.PanelTitle" />
         <EditText android:id="@+id/server_url" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:hint="@string/server_url_hint" android:inputType="textUri" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
         <Button android:id="@+id/connect_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:layout_marginTop="12dp" android:text="@string/connect" />
         <LinearLayout android:id="@+id/settings_actions" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="end" android:orientation="horizontal" android:visibility="gone">
@@ -53,7 +63,7 @@
         android:background="@drawable/panel_background"
         android:orientation="vertical"
         android:visibility="gone">
-        <TextView android:id="@+id/pin_setup_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/create_parent_pin" android:textColor="@color/white" android:textSize="28sp" />
+        <TextView android:id="@+id/pin_setup_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/create_parent_pin" android:textAppearance="@style/TextAppearance.NostalgiaBox.PanelTitle" />
         <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/pin_setup_description" android:textColor="@color/white" android:textSize="16sp" />
         <EditText android:id="@+id/new_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:hint="@string/four_digit_pin" android:inputType="numberPassword" android:maxLength="4" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
         <EditText android:id="@+id/confirm_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:hint="@string/confirm_pin" android:inputType="numberPassword" android:maxLength="4" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
@@ -72,7 +82,7 @@
         android:background="@drawable/panel_background"
         android:orientation="vertical"
         android:visibility="gone">
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/parent_access" android:textColor="@color/white" android:textSize="28sp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/parent_access" android:textAppearance="@style/TextAppearance.NostalgiaBox.PanelTitle" />
         <EditText android:id="@+id/parent_pin" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:hint="@string/four_digit_pin" android:inputType="numberPassword" android:maxLength="4" android:singleLine="true" android:textColor="@color/white" android:textColorHint="#99FFFFFF" />
         <TextView android:id="@+id/pin_entry_error" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="#FFFF7070" android:textSize="16sp" android:visibility="gone" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="end" android:orientation="horizontal">
@@ -89,7 +99,7 @@
         android:background="@drawable/panel_background"
         android:orientation="vertical"
         android:visibility="gone">
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/parent_mode" android:textColor="@color/white" android:textSize="28sp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/parent_mode" android:textAppearance="@style/TextAppearance.NostalgiaBox.PanelTitle" />
         <Button android:id="@+id/fire_home_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="@string/open_fire_home" />
         <Button android:id="@+id/parent_settings_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/nostalgiabox_settings" />
         <Button android:id="@+id/relock_button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/lock_again" />

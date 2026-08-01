@@ -3,4 +3,9 @@
     <color name="phosphor">#79FF86</color>
     <color name="panel">#E61A1A1A</color>
     <color name="white">#FFFFFF</color>
+    <color name="tv_warm_white">#E8E5DC</color>
+    <color name="tv_cream">#F3D6A0</color>
+    <color name="tv_orange">#EF7D32</color>
+    <color name="tv_teal">#78B9B4</color>
+    <color name="tv_ink">#111A1B</color>
 </resources>

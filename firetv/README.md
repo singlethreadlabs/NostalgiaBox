@@ -16,6 +16,11 @@ parent PIN and then enters kid mode:
 - Parent mode can open Fire TV Home, change the NostalgiaBox server or PIN, or
   relock immediately.
 - Returning to NostalgiaBox always relocks parent mode.
+- Leaving for Fire TV Home stops playback and releases the server session;
+  returning creates exactly one fresh live session.
+- Channel changes use the same retro presentation as the web player: a
+  top-left monospace channel bug, program title, brief static flash, scanlines,
+  and a subtle CRT-style vignette.
 
 The PIN is stored locally as a salted derived hash, not as plaintext. Five
 failed attempts impose a 30-second delay. If the PIN is forgotten, clear the
@@ -36,6 +41,26 @@ export ANDROID_HOME="$HOME/Library/Android/sdk" # macOS default
 ```
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
+## Brand assets
+
+The TV client packages `nostalgiabox.png` as density-specific Android launcher
+icons. It also uses an opaque 16:9 banner for the Fire TV launcher. Regenerate
+both, plus the matching Amazon Appstore upload asset, from the repository root:
+
+```bash
+python3 firetv/scripts/generate-brand-assets.py
+```
+
+The generated files are:
+
+- `app/src/main/res/mipmap-*/ic_launcher.png`: icons embedded in the APK.
+- `app/src/main/res/drawable-nodpi/tv_banner.png`: Fire TV launcher banner.
+- `store-assets/fire-tv-app-icon-1280x720.png`: Amazon Appstore listing image.
+
+The generator requires Pillow and uses the bundled VT323 font. The app also
+packages that font under `app/src/main/res/font` for the channel overlay. Store
+signing, screenshots, and submission metadata remain separate release steps.
 
 ## Sideload
 

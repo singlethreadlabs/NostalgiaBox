@@ -86,4 +86,17 @@ class PinSecurityTest {
         access.back()
         assertEquals(ParentAccessState.LOCKED, access.state)
     }
+
+    @Test
+    fun backgroundRelockClearsEveryParentState() {
+        val access = ParentAccessController()
+        access.requestPin()
+        access.acceptPin()
+        access.openSettings()
+
+        access.relock()
+
+        assertEquals(ParentAccessState.LOCKED, access.state)
+        assertFalse(access.isUnlocked)
+    }
 }

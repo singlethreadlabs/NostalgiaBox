@@ -43,4 +43,25 @@ class ServerUrlTest {
         assertEquals(2, ChannelNavigator.move(0, -1, 3))
         assertEquals(1, ChannelNavigator.move(0, 1, 3))
     }
+
+    @Test
+    fun coalescesRapidChannelTuneRequests() {
+        val queue = ChannelTuneQueue()
+
+        queue.request(1)
+        queue.request(2)
+        queue.request(5)
+
+        assertEquals(5, queue.consume())
+        assertEquals(null, queue.consume())
+        queue.request(3)
+        queue.cancel()
+        assertEquals(null, queue.consume())
+    }
+
+    @Test
+    fun formatsRetroChannelDisplay() {
+        assertEquals("CH 04", RetroChannelText.number(4))
+        assertEquals("LITTLE SPROUT PLAYHOUSE", RetroChannelText.name("Little Sprout Playhouse"))
+    }
 }
