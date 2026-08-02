@@ -26,10 +26,11 @@ The PIN is stored locally as a salted derived hash, not as plaintext. Five
 failed attempts impose a 30-second delay. If the PIN is forgotten, clear the
 NostalgiaBox application data from Fire TV settings and repeat setup.
 
-The app requests a best-effort launch after boot and after an APK update. Fire
-OS firmware can block apps from opening activities in the background, so this
-must be tested on the physical television. NostalgiaBox does not replace the
-Amazon launcher and cannot intercept the system-controlled Home button.
+The app requests a best-effort launch after boot. APK installation and updates
+never open the app automatically. Fire OS firmware can block apps from opening
+activities in the background, so boot behavior must be tested on the physical
+television. NostalgiaBox does not replace the Amazon launcher and cannot
+intercept the system-controlled Home button.
 
 ## Build
 

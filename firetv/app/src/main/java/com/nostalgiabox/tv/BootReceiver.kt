@@ -15,6 +15,6 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private companion object {
-        val SUPPORTED_ACTIONS = setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED)
+        val SUPPORTED_ACTIONS = setOf(Intent.ACTION_BOOT_COMPLETED)
     }
 }
