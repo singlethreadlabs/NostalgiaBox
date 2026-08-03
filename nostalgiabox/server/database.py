@@ -48,6 +48,39 @@ CREATE INDEX IF NOT EXISTS programs_latest_end
     ON programs(channel_number, ends_at DESC);
 CREATE INDEX IF NOT EXISTS programs_latest_kind
     ON programs(channel_number, kind, starts_at DESC);
+
+CREATE TABLE IF NOT EXISTS viewing_sessions (
+    id TEXT PRIMARY KEY,
+    program_id INTEGER,
+    media_id INTEGER,
+    channel_number INTEGER NOT NULL,
+    channel_name TEXT NOT NULL,
+    show_name TEXT NOT NULL,
+    episode_title TEXT NOT NULL,
+    media_kind TEXT NOT NULL CHECK(media_kind IN ('show', 'bumper', 'commercial')),
+    client_type TEXT NOT NULL CHECK(client_type IN ('browser', 'fire_tv')),
+    started_at REAL NOT NULL,
+    ended_at REAL,
+    is_playing INTEGER NOT NULL DEFAULT 0 CHECK(is_playing IN (0, 1)),
+    active_since REAL,
+    last_activity_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS viewing_sessions_started
+    ON viewing_sessions(started_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS viewing_sessions_kind_client
+    ON viewing_sessions(media_kind, client_type, started_at);
+
+CREATE TABLE IF NOT EXISTS viewing_intervals (
+    id INTEGER PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES viewing_sessions(id) ON DELETE CASCADE,
+    started_at REAL NOT NULL,
+    ended_at REAL NOT NULL,
+    watch_seconds REAL NOT NULL CHECK(watch_seconds >= 0)
+);
+CREATE INDEX IF NOT EXISTS viewing_intervals_range
+    ON viewing_intervals(started_at, ended_at);
+CREATE INDEX IF NOT EXISTS viewing_intervals_session
+    ON viewing_intervals(session_id);
 """
 
 

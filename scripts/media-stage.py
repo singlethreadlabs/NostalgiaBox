@@ -46,10 +46,16 @@ class StageResult:
 @dataclass(frozen=True)
 class StreamLayout:
     audio_codecs: tuple[str, ...]
+    audio_bitrates: tuple[int, ...]
+    audio_channels: tuple[int, ...]
     subtitle_codecs: tuple[str, ...]
 
 
 TEXT_SUBTITLE_CODECS = {"ass", "mov_text", "ssa", "subrip", "webvtt"}
+
+
+class SavingsGateError(RuntimeError):
+    """A verified candidate is not materially smaller than its source."""
 
 
 def run(command: list[str], *, description: str) -> subprocess.CompletedProcess[str]:
@@ -67,7 +73,7 @@ def probe_stream_layout(path: Path) -> StreamLayout:
             "-v",
             "error",
             "-show_entries",
-            "stream=codec_type,codec_name",
+            "stream=codec_type,codec_name,bit_rate,channels",
             "-of",
             "json",
             str(path),
@@ -78,6 +84,16 @@ def probe_stream_layout(path: Path) -> StreamLayout:
     return StreamLayout(
         audio_codecs=tuple(
             stream.get("codec_name", "")
+            for stream in streams
+            if stream.get("codec_type") == "audio"
+        ),
+        audio_bitrates=tuple(
+            optimizer.positive_int(stream.get("bit_rate"))
+            for stream in streams
+            if stream.get("codec_type") == "audio"
+        ),
+        audio_channels=tuple(
+            optimizer.positive_int(stream.get("channels"))
             for stream in streams
             if stream.get("codec_type") == "audio"
         ),
@@ -163,6 +179,44 @@ def should_encode_video(info: optimizer.MediaInfo, *, max_height: int) -> bool:
         info.video_codec != "h264"
         or info.height > max_height
         or "estimated size reduction is meaningful" in recommendation.reasons
+    )
+
+
+def audio_bitrate_bps(value: str) -> int:
+    normalized = value.strip().lower()
+    multiplier = 1
+    if normalized.endswith("k"):
+        multiplier = 1_000
+        normalized = normalized[:-1]
+    elif normalized.endswith("m"):
+        multiplier = 1_000_000
+        normalized = normalized[:-1]
+    try:
+        bitrate = int(float(normalized) * multiplier)
+    except ValueError as error:
+        raise ValueError(f"invalid audio bitrate: {value}") from error
+    if bitrate <= 0:
+        raise ValueError("audio bitrate must be positive")
+    return bitrate
+
+
+def should_encode_audio(layout: StreamLayout, *, target_bitrate: int) -> bool:
+    return any(codec != "aac" for codec in layout.audio_codecs) or any(
+        bitrate > target_bitrate for bitrate in layout.audio_bitrates
+    ) or any(channels > 2 for channels in layout.audio_channels)
+
+
+def passes_savings_gate(
+    source_bytes: int,
+    output_bytes: int,
+    *,
+    minimum_percent: float,
+    minimum_bytes: int,
+) -> bool:
+    savings = source_bytes - output_bytes
+    return savings > 0 and (
+        savings >= minimum_bytes
+        or savings / source_bytes * 100 >= minimum_percent
     )
 
 
@@ -252,6 +306,9 @@ def stage_one(
     audio_bitrate: str,
     start: float,
     sample_seconds: float | None,
+    minimum_savings_percent: float,
+    minimum_savings_bytes: int,
+    normalize_audio_enabled: bool,
     relative_destination: Path | None = None,
 ) -> StageResult:
     info = optimizer.probe_media(source)
@@ -273,7 +330,7 @@ def stage_one(
 
     measurement = (
         measure_segment(source, start=start, duration=sample_seconds)
-        if info.audio_codec is not None
+        if info.audio_codec is not None and normalize_audio_enabled
         else None
     )
     normalize_audio = measurement is not None and (
@@ -293,18 +350,32 @@ def stage_one(
         ["-map", "0:v:0", "-map", "0:a?", "-map", "0:s?", "-map_chapters", "0"]
     )
     if encode_video:
-        command.extend(["-c:v", "libx264", "-preset", preset, "-crf", str(crf)])
+        command.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                preset,
+                "-crf",
+                str(crf),
+                "-profile:v",
+                "high",
+                "-pix_fmt",
+                "yuv420p",
+            ]
+        )
         if info.height > max_height:
             command.extend(["-vf", f"scale=-2:{max_height}:flags=lanczos"])
     else:
         command.extend(["-c:v", "copy"])
-    convert_audio = normalize_audio or any(
-        codec != "aac" for codec in source_layout.audio_codecs
+    convert_audio = normalize_audio or should_encode_audio(
+        source_layout,
+        target_bitrate=audio_bitrate_bps(audio_bitrate),
     )
     if convert_audio:
-        assert measurement is not None
-        command.extend(["-c:a", "aac", "-b:a", audio_bitrate])
+        command.extend(["-c:a", "aac", "-b:a", audio_bitrate, "-ac", "2"])
         if normalize_audio:
+            assert measurement is not None
             command.extend(["-filter:a:0", loudnorm_filter(measurement)])
     elif source_layout.audio_codecs:
         command.extend(["-c:a", "copy"])
@@ -352,7 +423,7 @@ def stage_one(
         )
         output_measurement = (
             optimizer.measure_loudness(partial)
-            if staged_info.audio_codec is not None
+            if staged_info.audio_codec is not None and measurement is not None
             else None
         )
         if normalize_audio and output_measurement is not None:
@@ -421,6 +492,18 @@ def stage_one(
                 audio_fallback = False
         else:
             audio_fallback = False
+        if sample_seconds is None and not passes_savings_gate(
+            info.size,
+            partial.stat().st_size,
+            minimum_percent=minimum_savings_percent,
+            minimum_bytes=minimum_savings_bytes,
+        ):
+            savings = info.size - partial.stat().st_size
+            raise SavingsGateError(
+                f"staged output for {source} failed the savings gate: "
+                f"saved {savings} bytes; requires {minimum_savings_percent:g}% "
+                f"or {minimum_savings_bytes} bytes"
+            )
         partial.replace(destination)
     except Exception:
         partial.unlink(missing_ok=True)
@@ -432,10 +515,10 @@ def stage_one(
         audio_action = "normalize"
     elif audio_fallback:
         audio_action = "preserve-peak-outlier"
-    elif info.audio_codec == "aac":
-        audio_action = "copy"
-    elif source_layout.audio_codecs:
+    elif convert_audio:
         audio_action = "convert"
+    elif source_layout.audio_codecs:
+        audio_action = "copy"
 
     return StageResult(
         source=str(source),
@@ -469,21 +552,41 @@ def write_manifest(
     manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def read_paths_file(path: Path) -> list[Path]:
+    return [
+        Path(line)
+        for raw_line in path.read_text(encoding="utf-8").splitlines()
+        if (line := raw_line.strip()) and not line.startswith("#")
+    ]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Create verified optimized media in a staging directory."
     )
-    parser.add_argument("paths", nargs="+", type=Path)
+    parser.add_argument("paths", nargs="*", type=Path)
+    parser.add_argument(
+        "--paths-from",
+        type=Path,
+        help="read additional input paths from a newline-delimited file",
+    )
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--max-height", type=int, default=480)
-    parser.add_argument("--crf", type=int, default=24)
-    parser.add_argument("--preset", default="medium")
+    parser.add_argument("--max-height", type=int, default=720)
+    parser.add_argument("--crf", type=int, default=23)
+    parser.add_argument("--preset", default="slow")
     parser.add_argument("--audio-bitrate", default="128k")
+    parser.add_argument("--minimum-savings-percent", type=float, default=15.0)
+    parser.add_argument("--minimum-savings-mib", type=float, default=50.0)
     parser.add_argument(
         "--target-lufs",
         type=float,
         default=-16.0,
         help="integrated loudness target (episodes: -20; bumpers: -16)",
+    )
+    parser.add_argument(
+        "--skip-loudness-normalization",
+        action="store_true",
+        help="preserve program loudness while still applying the audio codec policy",
     )
     parser.add_argument("--start", type=float, default=0.0)
     parser.add_argument("--sample-seconds", type=float)
@@ -506,14 +609,31 @@ def main() -> int:
         or not 0 <= args.crf <= 51
         or args.jobs < 1
         or not -30 <= args.target_lufs <= -10
+        or not 0 <= args.minimum_savings_percent <= 100
+        or args.minimum_savings_mib < 0
     ):
         print(
             "error: --max-height must be >= 144, --crf must be 0-51, "
-            "--jobs must be >= 1, and --target-lufs must be -30 to -10",
+            "--jobs must be >= 1, --target-lufs must be -30 to -10, "
+            "and savings thresholds must be non-negative",
             file=sys.stderr,
         )
         return 2
     optimizer.TARGET_INTEGRATED_LUFS = args.target_lufs
+    try:
+        audio_bitrate_bps(args.audio_bitrate)
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    if args.paths_from:
+        try:
+            args.paths.extend(read_paths_file(args.paths_from))
+        except OSError as error:
+            print(f"error: cannot read --paths-from: {error}", file=sys.stderr)
+            return 2
+    if not args.paths:
+        print("error: provide media paths or --paths-from", file=sys.stderr)
+        return 2
     if args.start < 0 or (
         args.sample_seconds is not None and args.sample_seconds <= 0
     ):
@@ -577,6 +697,11 @@ def main() -> int:
                 audio_bitrate=args.audio_bitrate,
                 start=args.start,
                 sample_seconds=args.sample_seconds,
+                minimum_savings_percent=args.minimum_savings_percent,
+                minimum_savings_bytes=round(
+                    args.minimum_savings_mib * 1024 * 1024
+                ),
+                normalize_audio_enabled=not args.skip_loudness_normalization,
                 relative_destination=destinations[source],
             ): source
             for source in pending

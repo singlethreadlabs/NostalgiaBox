@@ -407,13 +407,40 @@ channels:
         assert client.get("/api/v1/channels/99/now").status_code == 404
 
         playback = client.post(
-            "/api/v1/playback-sessions", json={"channel_number": 2}
+            "/api/v1/playback-sessions",
+            json={"channel_number": 2, "client_type": "browser"},
         )
         assert playback.status_code == 201
         descriptor = playback.json()
         assert descriptor["delivery_mode"] == "direct"
         assert descriptor["hls_url"] is None
         assert descriptor["browser_url"].endswith("/stream.mp4")
+
+        activity_url = f"/api/v1/playback-sessions/{descriptor['id']}/activity"
+        original_expiry = client.app.state.server.playback.get(
+            descriptor["id"], touch=False
+        ).expires_at
+        time.sleep(0.01)
+        assert client.post(activity_url, json={"playing": True}).status_code == 204
+        assert client.app.state.server.playback.get(
+            descriptor["id"], touch=False
+        ).expires_at > original_expiry
+        time.sleep(0.01)
+        assert client.post(activity_url, json={"playing": False}).status_code == 204
+        summary = client.get("/api/v1/analytics/summary")
+        assert summary.status_code == 200
+        assert summary.json()["total_watch_seconds"] > 0
+        history = client.get("/api/v1/analytics/history", params={"limit": 1})
+        assert history.status_code == 200
+        assert len(history.json()["items"]) == 1
+        assert client.get("/analytics/").status_code == 200
+        assert client.get(
+            "/api/v1/analytics/summary",
+            params={"from": "2026-08-03T10:00:00Z", "to": "2026-08-03T09:00:00Z"},
+        ).status_code == 422
+        assert client.get(
+            "/api/v1/analytics/history", params={"limit": 101}
+        ).status_code == 422
 
         ranged = client.get(
             descriptor["media_url"], headers={"range": "bytes=0-3"}

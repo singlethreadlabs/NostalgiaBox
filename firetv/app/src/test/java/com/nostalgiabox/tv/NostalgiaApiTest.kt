@@ -62,6 +62,25 @@ class NostalgiaApiTest {
     }
 
     @Test
+    fun identifiesFireTvAndReportsPlaybackActivity() {
+        server.enqueue(
+            json(
+                """{"id":"direct","delivery_mode":"direct","media_url":"/media","hls_url":null,"initial_offset_seconds":0,"program":{"title":"Show"}}"""
+            )
+        )
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        api.createPlayback(2)
+        api.reportActivity("direct", true)
+
+        val create = server.takeRequest()
+        assert(create.body.readUtf8().contains("\"client_type\":\"fire_tv\""))
+        val activity = server.takeRequest()
+        assertEquals("/api/v1/playback-sessions/direct/activity", activity.path)
+        assert(activity.body.readUtf8().contains("\"playing\":true"))
+    }
+
+    @Test
     fun reportsUnavailableAndInvalidResponses() {
         server.enqueue(MockResponse().setResponseCode(503).setBody("""{"detail":"not ready"}"""))
         assertEquals(

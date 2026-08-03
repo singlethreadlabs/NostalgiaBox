@@ -6,15 +6,18 @@ import asyncio
 import shutil
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from nostalgiabox.config import Config, load_config
 
+from .analytics import AnalyticsStore, RETENTION_SECONDS
 from .database import Database
 from .media import MediaIndexer
 from .playback import PlaybackManager
@@ -24,6 +27,11 @@ from .settings import ServerSettings
 
 class PlaybackRequest(BaseModel):
     channel_number: int
+    client_type: Literal["browser", "fire_tv"]
+
+
+class ActivityRequest(BaseModel):
+    playing: bool
 
 
 class ServerState:
@@ -41,6 +49,10 @@ class ServerState:
         self.playback = PlaybackManager(
             settings.cache_dir, settings.session_ttl_seconds
         )
+        self.analytics = AnalyticsStore(
+            self.database, self.config.schedule_timezone
+        )
+        self.analytics.cleanup(inactivity_seconds=settings.session_ttl_seconds)
         self.started_at = time.time()
 
     def refresh(self) -> int:
@@ -72,6 +84,9 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
             while True:
                 await asyncio.sleep(15)
                 state.playback.cleanup()
+                state.analytics.cleanup(
+                    inactivity_seconds=state.settings.session_ttl_seconds
+                )
 
         task = asyncio.create_task(cleanup())
         try:
@@ -139,6 +154,11 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
         if session.error:
             server.playback.release(session.id)
             raise HTTPException(status_code=503, detail=session.error)
+        try:
+            server.analytics.start_session(session.id, program, body.client_type, now)
+        except Exception:
+            server.playback.release(session.id)
+            raise
         direct = session.delivery_mode == "direct"
         return {
             "id": session.id,
@@ -166,8 +186,25 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
 
     @app.delete("/api/v1/playback-sessions/{session_id}", status_code=204)
     def delete_playback(session_id: str, request: Request) -> Response:
-        if not state(request).playback.release(session_id):
+        server = state(request)
+        if not server.playback.release(session_id):
             raise HTTPException(status_code=404, detail="playback session not found")
+        server.analytics.finish_session(session_id, time.time())
+        return Response(status_code=204)
+
+    @app.post("/api/v1/playback-sessions/{session_id}/activity", status_code=204)
+    def playback_activity(
+        session_id: str, body: ActivityRequest, request: Request
+    ) -> Response:
+        server = state(request)
+        try:
+            # Activity heartbeats also renew direct-play sessions, whose media
+            # response does not otherwise pass through PlaybackManager.
+            server.playback.get(session_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="playback session not found")
+        if not server.analytics.activity(session_id, body.playing, time.time()):
+            raise HTTPException(status_code=404, detail="viewing session not found")
         return Response(status_code=204)
 
     @app.get("/api/v1/media/{media_id}")
@@ -225,7 +262,66 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc))
         return {"status": "refreshed", "indexed_media": count}
 
+    def analytics_range(
+        from_value: datetime | None,
+        to_value: datetime | None,
+    ) -> tuple[float, float]:
+        now = time.time()
+        if from_value is not None and from_value.tzinfo is None:
+            raise HTTPException(status_code=422, detail="from must include a timezone")
+        if to_value is not None and to_value.tzinfo is None:
+            raise HTTPException(status_code=422, detail="to must include a timezone")
+        start = from_value.timestamp() if from_value else now - RETENTION_SECONDS
+        end = to_value.timestamp() if to_value else now
+        if start >= end:
+            raise HTTPException(status_code=422, detail="from must be before to")
+        if end - start > RETENTION_SECONDS:
+            raise HTTPException(
+                status_code=422, detail="analytics range cannot exceed 365 days"
+            )
+        return start, end
+
+    @app.get("/api/v1/analytics/summary")
+    def analytics_summary(
+        request: Request,
+        from_value: datetime | None = Query(default=None, alias="from"),
+        to_value: datetime | None = Query(default=None, alias="to"),
+        client_type: Literal["browser", "fire_tv"] | None = None,
+    ) -> dict:
+        server = state(request)
+        start, end = analytics_range(from_value, to_value)
+        return server.analytics.summary(start, end, client_type)
+
+    @app.get("/api/v1/analytics/history")
+    def analytics_history(
+        request: Request,
+        from_value: datetime | None = Query(default=None, alias="from"),
+        to_value: datetime | None = Query(default=None, alias="to"),
+        client_type: Literal["browser", "fire_tv"] | None = None,
+        limit: int = Query(default=25, ge=1, le=100),
+        cursor: str | None = None,
+    ) -> dict:
+        server = state(request)
+        start, end = analytics_range(from_value, to_value)
+        parsed_cursor = None
+        if cursor:
+            try:
+                timestamp, session_id = cursor.split(":", 1)
+                parsed_cursor = (float(timestamp), session_id)
+                if not session_id:
+                    raise ValueError
+            except ValueError:
+                raise HTTPException(status_code=422, detail="invalid history cursor")
+        return server.analytics.history(
+            start, end, client_type, limit, parsed_cursor
+        )
+
     web_dir = Path(__file__).with_name("web")
+
+    @app.get("/analytics", include_in_schema=False)
+    @app.get("/analytics/", include_in_schema=False)
+    def analytics_page() -> FileResponse:
+        return FileResponse(web_dir / "analytics.html")
     app.mount(
         "/fonts",
         StaticFiles(directory=Path(__file__).parents[1] / "assets" / "fonts"),

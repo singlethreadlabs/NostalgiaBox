@@ -16,6 +16,34 @@ let tuneGeneration = 0;
 let bugTimer = null;
 let enteredDigits = "";
 let digitTimer = null;
+let heartbeatTimer = null;
+
+function stopHeartbeat() {
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = null;
+}
+
+function reportActivity(sessionId, playing, keepalive = false) {
+  if (!sessionId) return Promise.resolve();
+  return fetch(`/api/v1/playback-sessions/${sessionId}/activity`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ playing }),
+    keepalive,
+  }).catch(() => undefined);
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  const sessionId = activeSession;
+  if (!sessionId || player.paused) return;
+  void reportActivity(sessionId, true);
+  heartbeatTimer = setInterval(() => {
+    if (activeSession === sessionId && !player.paused) {
+      void reportActivity(sessionId, true);
+    }
+  }, 15000);
+}
 
 async function api(path, options) {
   const response = await fetch(path, options);
@@ -42,6 +70,8 @@ function showError(message) {
 
 async function releaseSession(sessionId) {
   if (!sessionId) return;
+  if (sessionId === activeSession) stopHeartbeat();
+  await reportActivity(sessionId, false);
   await fetch(`/api/v1/playback-sessions/${sessionId}`, { method: "DELETE" });
 }
 
@@ -61,7 +91,7 @@ async function tune(channelNumber) {
     const session = await api("/api/v1/playback-sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ channel_number: channelNumber }),
+      body: JSON.stringify({ channel_number: channelNumber, client_type: "browser" }),
     });
     if (generation !== tuneGeneration) {
       await releaseSession(session.id);
@@ -122,12 +152,21 @@ document.querySelector("#play").addEventListener("click", async () => {
 player.addEventListener("playing", () => {
   document.querySelector("#play").textContent = "Pause";
   errorBox.hidden = true;
+  startHeartbeat();
 });
 player.addEventListener("pause", () => {
   document.querySelector("#play").textContent = "Play";
+  stopHeartbeat();
+  void reportActivity(activeSession, false);
 });
 player.addEventListener("ended", () => {
+  stopHeartbeat();
+  void reportActivity(activeSession, false);
   if (lineup[currentIndex]) void tune(lineup[currentIndex].number);
+});
+player.addEventListener("error", () => {
+  stopHeartbeat();
+  void reportActivity(activeSession, false);
 });
 document.querySelector("#mute").addEventListener("click", (event) => {
   player.muted = !player.muted;
@@ -167,6 +206,8 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("pagehide", () => {
   if (activeSession) {
+    stopHeartbeat();
+    void reportActivity(activeSession, false, true);
     void fetch(`/api/v1/playback-sessions/${activeSession}`, {
       method: "DELETE",
       keepalive: true,

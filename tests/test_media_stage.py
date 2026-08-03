@@ -101,7 +101,52 @@ def test_probe_stream_layout_tracks_audio_and_subtitles(monkeypatch):
     layout = stage.probe_stream_layout(Path("episode.mkv"))
 
     assert layout.audio_codecs == ("aac", "ac3")
+    assert layout.audio_bitrates == (0, 0)
+    assert layout.audio_channels == (0, 0)
     assert layout.subtitle_codecs == ("subrip",)
+
+
+def test_audio_policy_reencodes_high_bitrate_or_multichannel_audio():
+    efficient = stage.StreamLayout(("aac",), (96_000,), (2,), ())
+    high_bitrate = stage.StreamLayout(("aac",), (192_000,), (2,), ())
+    multichannel = stage.StreamLayout(("aac",), (128_000,), (6,), ())
+
+    assert stage.should_encode_audio(efficient, target_bitrate=128_000) is False
+    assert stage.should_encode_audio(high_bitrate, target_bitrate=128_000) is True
+    assert stage.should_encode_audio(multichannel, target_bitrate=128_000) is True
+
+
+def test_savings_gate_accepts_percentage_or_absolute_threshold():
+    gib = 1024 * 1024 * 1024
+
+    assert stage.passes_savings_gate(
+        gib, 800 * 1024 * 1024, minimum_percent=15, minimum_bytes=50 * 1024 * 1024
+    )
+    assert stage.passes_savings_gate(
+        gib, 980 * 1024 * 1024, minimum_percent=15, minimum_bytes=50 * 1024 * 1024
+    ) is False
+    assert stage.passes_savings_gate(
+        100 * gib, 99 * gib, minimum_percent=15, minimum_bytes=50 * 1024 * 1024
+    )
+
+
+def test_audio_bitrate_parser_accepts_ffmpeg_style_values():
+    assert stage.audio_bitrate_bps("96k") == 96_000
+    assert stage.audio_bitrate_bps("128k") == 128_000
+    assert stage.audio_bitrate_bps("1m") == 1_000_000
+
+
+def test_paths_file_ignores_comments_and_blank_lines(tmp_path):
+    manifest = tmp_path / "targets.txt"
+    manifest.write_text(
+        "# selected targets\n/media/Shows/Example\n\n/media/movie.mp4\n",
+        encoding="utf-8",
+    )
+
+    assert stage.read_paths_file(manifest) == [
+        Path("/media/Shows/Example"),
+        Path("/media/movie.mp4"),
+    ]
 
 
 def test_repair_filter_uses_measured_aac_output():

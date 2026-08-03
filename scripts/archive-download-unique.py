@@ -96,6 +96,18 @@ def video_files(metadata: dict[str, Any], match: str | None) -> list[dict[str, A
     ]
 
 
+def movie_key(name: str) -> str:
+    """Group alternate tape/disc captures of the same movie title."""
+    stem = Path(name).stem
+    stem = re.sub(r"(?i)\s*\(version\s+\d+\)\s*", " ", stem)
+    stem = re.sub(
+        r"(?i)\s*\((?:19|20)\d{2}\s+(?:vhs|dvd)(?:\s+[^)]*)?\)\s*",
+        " ",
+        stem,
+    )
+    return re.sub(r"[^a-z0-9]+", " ", stem.lower()).strip()
+
+
 def preference(file: dict[str, Any], preferred_extension: str | None) -> tuple[int, ...]:
     extension = Path(file["name"]).suffix.lower().lstrip(".")
     width = int(file.get("width") or 0)
@@ -110,17 +122,27 @@ def preference(file: dict[str, Any], preferred_extension: str | None) -> tuple[i
 
 
 def select_unique(
-    files: list[dict[str, Any]], preferred_extension: str | None = None
+    files: list[dict[str, Any]],
+    preferred_extension: str | None = None,
+    *,
+    group_movies: bool = False,
+    prefer_smallest: bool = False,
 ) -> list[dict[str, Any]]:
     """Select the preferred encode for each show/season/episode."""
     selected: dict[str, dict[str, Any]] = {}
     for file in files:
         source_name = file.get("original") or file["name"]
-        key = episode_key(source_name)
+        key = movie_key(source_name) if group_movies else episode_key(source_name)
         current = selected.get(key)
-        if current is None or preference(file, preferred_extension) > preference(
-            current, preferred_extension
-        ):
+        file_preference = preference(file, preferred_extension)
+        current_preference = (
+            preference(current, preferred_extension) if current is not None else None
+        )
+        if prefer_smallest:
+            file_preference = (-file_preference[-1],)
+            if current_preference is not None:
+                current_preference = (-current_preference[-1],)
+        if current is None or file_preference > current_preference:
             selected[key] = file
     return sorted(selected.values(), key=lambda file: file["name"].lower())
 
@@ -261,6 +283,26 @@ def parse_args() -> argparse.Namespace:
         help="prefer this container when available (for a Pi, try: --prefer mp4)",
     )
     parser.add_argument(
+        "--require",
+        choices=sorted(extension.lstrip(".") for extension in VIDEO_EXTENSIONS),
+        help="only select files in this container",
+    )
+    parser.add_argument(
+        "--group-movies",
+        action="store_true",
+        help="deduplicate captures by movie title instead of episode number",
+    )
+    parser.add_argument(
+        "--prefer-smallest",
+        action="store_true",
+        help="prefer the smallest candidate within each duplicate group",
+    )
+    parser.add_argument(
+        "--max-file-mib",
+        type=float,
+        help="exclude individual files larger than this many MiB",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="list selections without downloading"
     )
     parser.add_argument(
@@ -293,7 +335,27 @@ def main() -> int:
             f"https://archive.org/metadata/{quote(identifier, safe='')}"
         )
         candidates = video_files(metadata, args.match)
-        selected = select_unique(candidates, args.prefer)
+        if args.require:
+            candidates = [
+                file
+                for file in candidates
+                if Path(file["name"]).suffix.lower() == f".{args.require}"
+            ]
+        if args.max_file_mib is not None:
+            if args.max_file_mib <= 0:
+                raise ValueError("--max-file-mib must be greater than zero")
+            maximum_bytes = int(args.max_file_mib * 1024 * 1024)
+            candidates = [
+                file
+                for file in candidates
+                if int(file.get("size") or 0) <= maximum_bytes
+            ]
+        selected = select_unique(
+            candidates,
+            args.prefer,
+            group_movies=args.group_movies,
+            prefer_smallest=args.prefer_smallest,
+        )
         destinations = {
             file["name"]: safe_destination(args.output, file["name"])
             for file in selected

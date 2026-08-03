@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Viewing Analytics · NostalgiaBox</title>
+    <link rel="stylesheet" href="/analytics.css?v=1">
+  </head>
+  <body>
+    <header>
+      <div><p class="eyebrow">NostalgiaBox</p><h1>Viewing Analytics</h1></div>
+      <a href="/">Back to TV</a>
+    </header>
+    <main>
+      <section class="filters" aria-label="Report filters">
+        <div class="presets" role="group" aria-label="Date range">
+          <button data-range="today">Today</button><button data-range="7">7 Days</button>
+          <button data-range="30" class="active">30 Days</button><button data-range="all">All Time</button>
+        </div>
+        <form id="custom-range">
+          <label>From <input id="from-date" type="date" required></label>
+          <label>To <input id="to-date" type="date" required></label>
+          <button type="submit">Apply</button>
+        </form>
+        <label>Device
+          <select id="client-filter"><option value="">All devices</option><option value="fire_tv">Fire TV</option><option value="browser">Browser</option></select>
+        </label>
+      </section>
+      <p id="error" class="error" hidden role="alert"></p>
+      <section class="cards" aria-label="Summary">
+        <article><span>Watch time</span><strong id="watch-time">—</strong></article>
+        <article><span>Viewing sessions</span><strong id="session-count">—</strong></article>
+        <article><span>Top channel</span><strong id="top-channel">—</strong></article>
+        <article><span>Top show</span><strong id="top-show">—</strong></article>
+      </section>
+      <section class="panel"><h2>Daily watch time</h2><div id="daily-chart" class="chart" role="img" aria-label="Daily watch time chart"></div></section>
+      <div class="rankings">
+        <section class="panel"><h2>Popular channels</h2><ol id="channels"></ol></section>
+        <section class="panel"><h2>Popular shows</h2><ol id="shows"></ol></section>
+        <section class="panel"><h2>Devices</h2><ol id="clients"></ol></section>
+      </div>
+      <section class="panel history">
+        <h2>Viewing history</h2>
+        <div class="table-wrap"><table><thead><tr><th>When</th><th>Channel</th><th>Show</th><th>Episode</th><th>Device</th><th>Watched</th></tr></thead><tbody id="history"></tbody></table></div>
+        <p id="empty-history" hidden>No shows watched in this range.</p>
+        <button id="load-more" hidden>Load more</button>
+      </section>
+    </main>
+    <script src="/analytics.js?v=1" defer></script>
+  </body>
+</html>

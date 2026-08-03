@@ -27,6 +27,7 @@ class Program:
     starts_at: float
     ends_at: float
     delivery_mode: str
+    show_name: str = ""
 
     def at(self, now: float) -> dict:
         return {
@@ -197,7 +198,11 @@ class Scheduler:
         with self.database.connect() as connection:
             row = connection.execute(
                 """
-                SELECT p.*, m.path, m.container, m.video_codec, m.audio_codec
+                SELECT p.*, m.path, m.container, m.video_codec, m.audio_codec,
+                       (SELECT cm.pool_key FROM channel_media cm
+                        WHERE cm.channel_number=p.channel_number
+                          AND cm.media_id=p.media_id AND cm.kind=p.kind
+                        LIMIT 1) AS pool_key
                 FROM programs p JOIN media_items m ON m.id=p.media_id
                 WHERE p.channel_number=? AND p.starts_at<=? AND p.ends_at>?
                 ORDER BY p.starts_at DESC LIMIT 1
@@ -222,6 +227,11 @@ class Scheduler:
             id=int(row["id"]),
             channel_number=channel_number,
             channel_name=self._names[channel_number],
+            show_name=(
+                Path(row["pool_key"]).name
+                if row["pool_key"] and row["kind"] == "show"
+                else "" if row["kind"] == "show" else row["kind"]
+            ),
             media_id=int(row["media_id"]),
             kind=row["kind"],
             path=Path(row["path"]),
@@ -240,7 +250,11 @@ class Scheduler:
         with self.database.connect() as connection:
             rows = connection.execute(
                 f"""
-                SELECT p.*, m.path, m.container, m.video_codec, m.audio_codec
+                SELECT p.*, m.path, m.container, m.video_codec, m.audio_codec,
+                       (SELECT cm.pool_key FROM channel_media cm
+                        WHERE cm.channel_number=p.channel_number
+                          AND cm.media_id=p.media_id AND cm.kind=p.kind
+                        LIMIT 1) AS pool_key
                 FROM programs p JOIN media_items m ON m.id=p.media_id
                 WHERE p.channel_number IN ({placeholders})
                   AND p.starts_at<=? AND p.ends_at>?

@@ -45,7 +45,10 @@ class NostalgiaApi(private val baseUrl: String) {
         val payload = request(
             "POST",
             "/api/v1/playback-sessions",
-            JSONObject().put("channel_number", channelNumber).toString(),
+            JSONObject()
+                .put("channel_number", channelNumber)
+                .put("client_type", "fire_tv")
+                .toString(),
         )
         val program = payload.optJSONObject("program")
             ?: throw ApiException("The playback response is missing program information.")
@@ -61,6 +64,15 @@ class NostalgiaApi(private val baseUrl: String) {
 
     fun releasePlayback(sessionId: String) {
         request("DELETE", "/api/v1/playback-sessions/$sessionId", expectBody = false)
+    }
+
+    fun reportActivity(sessionId: String, playing: Boolean) {
+        request(
+            "POST",
+            "/api/v1/playback-sessions/$sessionId/activity",
+            JSONObject().put("playing", playing).toString(),
+            expectBody = false,
+        )
     }
 
     private fun request(

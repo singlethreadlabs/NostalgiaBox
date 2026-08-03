@@ -2,16 +2,31 @@ schedule:
   timezone: America/Chicago
   horizon_hours: 24
 
-start_channel: 4
+start_channel: 2
 scan_recursive: true
 
 channels:
   - number: 2
     name: Slime Time Rewind
     shows:
-      - "/media/Shows/Courage the Cowardly Dog (1999)"
       - "/media/Shows/The Fairly OddParents (2001)"
       - "/media/Shows/KaBlam! (1996)"
+      - "/media/Shows/CatDog (1998)"
+      - "/media/Shows/All Grown Up! (2003)"
+      - "/media/Shows/Back at the Barnyard (2007)"
+      - "/media/Shows/ChalkZone (2002)"
+      - "/media/Shows/Danny Phantom (2004)"
+      - "/media/Shows/Doug (1991)"
+      - "/media/Shows/Hey Arnold! (1996)"
+      - "/media/Shows/Invader Zim (2001)"
+      - "/media/Shows/My Life as a Teenage Robot (2003)"
+      - "/media/Shows/Rocket Power (1999)"
+      - "/media/Shows/Rocko's Modern Life (1993)"
+      - "/media/Shows/Rugrats (1991)"
+      - "/media/Shows/SpongeBob SquarePants (1999)"
+      - "/media/Shows/The Adventures of Jimmy Neutron - Boy Genius (2002)"
+      - "/media/Shows/The Angry Beavers (1997)"
+      - "/media/Shows/The Wild Thornberrys (1998)"
     bumpers:
       - /media/Extras/NostalgiaBox-Bumpers/slime-time-rewind.mp4
 
@@ -19,154 +34,87 @@ channels:
     name: Orbit 2000
     shows:
       - "/media/Shows/Lilo & Stitch (2003)"
+      - "/media/Shows/American Dragon - Jake Long (2005)"
+      - "/media/Shows/Kim Possible (2002)"
       - "/media/Shows/The Proud Family (2001)"
-      - "/media/Shows/Sonic X (2003)"
+      - "/media/Shows/Buzz Lightyear of Star Command (2000)"
+      - "/media/Shows/Recess (1997)"
     bumpers:
       - /media/Extras/NostalgiaBox-Bumpers/orbit.mp4
 
   - number: 4
-    name: Little Sprout Playhouse
-    shows:
-      - "/media/Shows/Allegra's Window (1994)"
-      - "/media/Shows/Blue's Clues (1996)"
-      - "/media/Shows/Dragon Tales (1999)"
-      - "/media/Shows/Little Bill (1999)"
-    bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/little-sprout-playhouse.mp4
-
-  - number: 5
-    name: Bright Minds TV
-    shows:
-      - "/media/Shows/Arthur (1996)"
-      - "/media/Shows/Gullah Gullah Island (1994)"
-      - "/media/Shows/The Magic School Bus (1994)"
-    bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/bright-minds-tv.mp4
-
-  - number: 6
-    name: Cozy Corner
-    shows:
-      - "/media/Shows/Allegra's Window (1994)"
-      - "/media/Shows/Dragon Tales (1999)"
-      - "/media/Shows/Little Bill (1999)"
-      - "/media/Shows/The New Adventures of Winnie the Pooh (1988)"
-    bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/cozy-corner.mp4
-
-  - number: 7
-    name: Cartoon Lab
-    shows:
-      - "/media/Shows/Courage the Cowardly Dog (1999)"
-      - "/media/Shows/Dexter's Laboratory (1996)"
-      - "/media/Shows/The Fairly OddParents (2001)"
-      - "/media/Shows/KaBlam! (1996)"
-    bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/cartoon-lab.mp4
-
-  - number: 8
-    name: City Toons
-    shows:
-      - "/media/Shows/American Dragon: Jake Long (2005)"
-      - "/media/Shows/Kim Possible (2002)"
-      - "/media/Shows/The Proud Family (2001)"
-      - "/media/Shows/Teenage Mutant Ninja Turtles (2003)"
-    bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/city-toons.mp4
-
-  - number: 9
-    name: Nova Action
-    shows:
-      - "/media/Archives/Toonami Edits/Dragon Ball"
-      - "/media/Archives/Toonami Edits/Dragon Ball Z"
-      - "/media/Shows/Pokémon (1997)"
-      - "/media/Shows/Sonic X (2003)"
-      - "/media/Shows/Spider-Man Unlimited (1999)"
-      - "/media/Broadcasts/Toonami"
-    bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/nova-action.mp4
-
-  - number: 10
-    name: Wonder Channel
-    shows:
-      - "/media/Shows/Dragon Tales (1999)"
-      - "/media/Shows/Lilo & Stitch (2003)"
-      - "/media/Shows/Super Mario World (1991)"
-      - "/media/Shows/The Legend of Zelda (1989)"
-      - "/media/Shows/The New Adventures of Winnie the Pooh (1988)"
-      - "/media/Shows/Wizards of Waverly Place (2007)"
-    bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/wonder-channel.mp4
-
-  - number: 11
     name: Studio Live
     shows:
       - "/media/Shows/Even Stevens (2000)"
       - "/media/Shows/Hannah Montana (2006)"
       - "/media/Shows/Lizzie McGuire (2001)"
       - "/media/Shows/Phil of the Future (2004)"
-      - "/media/Shows/The Suite Life of Zack & Cody (2005)"
       - "/media/Shows/That's So Raven (2003)"
+      - "/media/Shows/The Suite Life of Zack & Cody (2005)"
       - "/media/Shows/Wizards of Waverly Place (2007)"
     bumpers:
       - /media/Extras/NostalgiaBox-Bumpers/studio-live.mp4
 
-  - number: 12
-    name: Saturday Signal
+  - number: 5
+    name: Wonder Channel
+    shows:
+      - "/media/Movies/Disney Channel Original Movies"
+    bumpers:
+      - /media/Extras/NostalgiaBox-Bumpers/wonder-channel.mp4
+
+  - number: 6
+    name: Saturday Club
+    shows:
+      - "/media/Movies/Disney VHS Collection"
+    bumpers:
+      - /media/Extras/NostalgiaBox-Bumpers/saturday-club.mp4
+
+  - number: 7
+    name: Cartoon Lab
     shows:
       - "/media/Shows/Courage the Cowardly Dog (1999)"
       - "/media/Shows/Dexter's Laboratory (1996)"
-      - "/media/Shows/Iron Man (1994)"
-      - "/media/Shows/KaBlam! (1996)"
-      - "/media/Shows/Recess (1997)"
-      - "/media/Shows/Super Mario World (1991)"
-      - "/media/Shows/The Legend of Zelda (1989)"
-      - "/media/Shows/X-Men (1992)"
+      - "/media/Shows/Foster's Home for Imaginary Friends (2004)"
+      - "/media/Shows/The Powerpuff Girls (1998)"
+      - "/media/Shows/The Secret Saturdays (2008)"
     bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/saturday-signal.mp4
+      - /media/Extras/NostalgiaBox-Bumpers/cartoon-lab.mp4
 
-  - number: 13
+  - number: 8
     name: Powerhouse Kids
     shows:
-      - "/media/Shows/American Dragon: Jake Long (2005)"
-      - "/media/Shows/Iron Man (1994)"
-      - "/media/Shows/Kim Possible (2002)"
+      - "/media/Shows/Batman - The Animated Series (1992)"
+      - "/media/Shows/Spider-Man (1994)"
       - "/media/Shows/Spider-Man Unlimited (1999)"
-      - "/media/Shows/Teenage Mutant Ninja Turtles (2003)"
       - "/media/Shows/X-Men (1992)"
+      - "/media/Shows/Iron Man (1994)"
+      - "/media/Shows/Teenage Mutant Ninja Turtles (2003)"
     bumpers:
       - /media/Extras/NostalgiaBox-Bumpers/powerhouse-kids.mp4
 
-  - number: 14
-    name: Sick Day TV
+  - number: 9
+    name: Bright Minds TV
     shows:
       - "/media/Shows/Arthur (1996)"
-      - "/media/Shows/Blue's Clues (1996)"
       - "/media/Shows/Dragon Tales (1999)"
-      - "/media/Archives/Nick Jr"
+      - "/media/Shows/The Magic School Bus (1994)"
+      - "/media/Shows/Amazing Animals (1996)"
+      - "/media/Shows/Reading Rainbow (1983)"
+      - "/media/Shows/Little Bear (1995)"
+      - "/media/Shows/Gullah Gullah Island (1994)"
+      - "/media/Shows/The Wonder Pets (2006)"
       - "/media/Shows/The New Adventures of Winnie the Pooh (1988)"
     bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/sick-day-tv.mp4
+      - /media/Extras/NostalgiaBox-Bumpers/bright-minds-tv.mp4
 
-  - number: 15
-    name: Saturday Club
+  - number: 10
+    name: Nova Action
     shows:
-      - "/media/Shows/American Dragon: Jake Long (2005)"
-      - "/media/Shows/Arthur (1996)"
-      - "/media/Shows/Courage the Cowardly Dog (1999)"
-      - "/media/Shows/Dexter's Laboratory (1996)"
-      - "/media/Shows/Dragon Tales (1999)"
-      - "/media/Shows/KaBlam! (1996)"
-      - "/media/Shows/Kim Possible (2002)"
-      - "/media/Shows/Lilo & Stitch (2003)"
+      - "/media/Shows/Dragon Ball Z (1989)"
       - "/media/Shows/Pokémon (1997)"
-      - "/media/Shows/Recess (1997)"
       - "/media/Shows/Sonic X (2003)"
+      - "/media/Shows/Mega Man (1994)"
       - "/media/Shows/Super Mario World (1991)"
-      - "/media/Shows/Teenage Mutant Ninja Turtles (2003)"
-      - "/media/Shows/The Fairly OddParents (2001)"
       - "/media/Shows/The Legend of Zelda (1989)"
-      - "/media/Shows/The Magic School Bus (1994)"
-      - "/media/Shows/The Proud Family (2001)"
-      - "/media/Shows/X-Men (1992)"
     bumpers:
-      - /media/Extras/NostalgiaBox-Bumpers/saturday-club.mp4
+      - /media/Extras/NostalgiaBox-Bumpers/nova-action.mp4

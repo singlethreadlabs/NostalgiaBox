@@ -176,11 +176,13 @@ python3 scripts/media-stage.py /path/to/show \
 
 The output directory must be empty. The processor measures the first audio
 stream, applies two-pass loudness normalization when needed, encodes oversized
-or incompatible video as H.264 CRF 24, converts audio to AAC 128 kbps, and caps
-video at 480p without upscaling. Efficient H.264 video is copied unchanged. Each
-output is fully decoded and measured again; a duration, decode, loudness, or
-true-peak failure stops the run. `manifest.json` records the actions and marks
-the files as staged for review—it never replaces source files.
+or incompatible video as H.264 High Profile CRF 23 with the slow preset,
+converts oversized or multichannel audio to stereo AAC 128 kbps, and caps video
+at 720p without upscaling. Efficient H.264 video and AAC audio are copied
+unchanged. Full-file outputs must save at least 15% or 50 MiB; otherwise the
+staged output is rejected. Each accepted output is fully decoded and checked
+for duration and stream-count changes. `manifest.json` records the actions and
+marks files as staged for review—it never replaces source files.
 
 Long batches use two simultaneous jobs by default and update the manifest after
 every completed file. Resume an interrupted batch without reprocessing verified
@@ -209,6 +211,38 @@ when the source visibly benefits from the extra resolution.
 For full television episodes, use `--target-lufs -20` to preserve program
 dynamics. The default -16 LUFS target is intended for short bumpers and other
 promotional clips.
+
+For size reduction without changing program loudness, pass
+`--skip-loudness-normalization`. A newline-delimited target manifest can be
+supplied with `--paths-from`; blank lines and lines beginning with `#` are
+ignored. The homelab's reviewed target set is stored in
+`config/media-reduction-targets.homelab.txt`.
+
+After sample approval, reduce the selected homelab files in place with the
+sequential reducer. It creates only one hidden candidate beside the source,
+fully validates it, atomically replaces the source when the savings gate passes,
+and deletes the candidate while retaining the source when it does not. The
+JSONL journal is flushed after every file and makes an interrupted run
+resumable. `--apply` is required; omitting it performs a dry run.
+
+```bash
+docker run --rm --read-only --tmpfs /tmp:size=2g \
+  -v /srv/media:/media:rw \
+  -v /srv/nostalgiabox/tools:/tools:ro \
+  -v /srv/nostalgiabox/config:/config:ro \
+  nostalgiabox:local \
+  python3 /tools/media-reduce-in-place.py \
+    --paths-from /config/media-reduction-targets.homelab.txt \
+    --journal /media/migrations/media-reduction-crf23.jsonl \
+    --max-height 720 --crf 23 --preset slow --audio-bitrate 128k \
+    --minimum-savings-percent 15 --minimum-savings-mib 50 \
+    --skip-loudness-normalization --apply
+```
+
+Run 60-second CRF 23 and CRF 24 samples first and compare them on the target TV.
+Only after that review should in-place reduction begin. The source remains
+untouched until its individual candidate passes duration, stream-count, decode,
+size, and savings checks; there is never a second full-library copy.
 
 ### Part F — Set up your channels
 

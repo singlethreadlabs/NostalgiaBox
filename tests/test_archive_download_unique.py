@@ -76,6 +76,33 @@ def test_select_unique_can_prefer_mp4_for_compatibility():
     assert [file["name"] for file in selected] == ["Show - S01E01 - Pilot.mp4"]
 
 
+def test_select_unique_groups_movie_versions_and_can_prefer_smallest():
+    files = [
+        {"name": "Aladdin (1993 VHS).mp4", "size": "200", "source": "original"},
+        {
+            "name": "Aladdin (1993 VHS) (Version 2).mp4",
+            "size": "100",
+            "source": "original",
+        },
+        {"name": "Bambi (1989 VHS).mp4", "size": "150", "source": "original"},
+    ]
+
+    selected = archive.select_unique(
+        files, "mp4", group_movies=True, prefer_smallest=True
+    )
+
+    assert [file["name"] for file in selected] == [
+        "Aladdin (1993 VHS) (Version 2).mp4",
+        "Bambi (1989 VHS).mp4",
+    ]
+
+
+def test_movie_key_ignores_release_and_version_markers():
+    assert archive.movie_key("Dumbo (1991 VHS) (Version 2).mp4") == archive.movie_key(
+        "Dumbo (2002 VHS).mp4"
+    )
+
+
 def test_episode_key_keeps_different_shows_separate():
     assert archive.episode_key("First Show S01E01.mkv") != archive.episode_key(
         "Second Show S01E01.mp4"

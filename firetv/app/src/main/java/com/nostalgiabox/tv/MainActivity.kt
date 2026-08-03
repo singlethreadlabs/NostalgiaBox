@@ -77,6 +77,14 @@ class MainActivity : AppCompatActivity(), Player.Listener, AnalyticsListener {
     private var currentProgramTitle: String? = null
     private var currentProgramChannel: Int? = null
     private var estimatedBitrate: Long? = null
+    private val analyticsHeartbeat = object : Runnable {
+        override fun run() {
+            val sessionId = activeSessionId ?: return
+            if (!player.isPlaying) return
+            reportActivityInBackground(sessionId, true)
+            mainHandler.postDelayed(this, ANALYTICS_HEARTBEAT_MILLIS)
+        }
+    }
 
     private val parentUnlocked: Boolean
         get() = parentAccess.isUnlocked
@@ -284,6 +292,7 @@ class MainActivity : AppCompatActivity(), Player.Listener, AnalyticsListener {
                 val previous = activeSessionId
                 activeSessionId = readySession.id
                 if (previous != null && previous != readySession.id) releaseInBackground(previous)
+                updateAnalytics(player.isPlaying)
                 retryAvailable = true
                 errorPanel.visibility = View.GONE
             }
@@ -296,6 +305,25 @@ class MainActivity : AppCompatActivity(), Player.Listener, AnalyticsListener {
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         setPlaybackKeepsScreenAwake(isPlaying)
+        updateAnalytics(isPlaying)
+    }
+
+    private fun updateAnalytics(isPlaying: Boolean) {
+        mainHandler.removeCallbacks(analyticsHeartbeat)
+        val sessionId = activeSessionId ?: return
+        reportActivityInBackground(sessionId, isPlaying)
+        if (isPlaying) mainHandler.postDelayed(
+            analyticsHeartbeat,
+            ANALYTICS_HEARTBEAT_MILLIS,
+        )
+    }
+
+    private fun reportActivityInBackground(sessionId: String, playing: Boolean) {
+        val currentApi = api ?: return
+        executor.execute {
+            runCatching { currentApi.reportActivity(sessionId, playing) }
+                .onFailure { Log.w(PLAYBACK_LOG_TAG, "Analytics activity report failed", it) }
+        }
     }
 
     private fun setPlaybackKeepsScreenAwake(keepAwake: Boolean) {
@@ -662,6 +690,8 @@ class MainActivity : AppCompatActivity(), Player.Listener, AnalyticsListener {
     private fun stopPlaybackAndRelease() {
         cancelPendingTune()
         ++tuneGeneration
+        mainHandler.removeCallbacks(analyticsHeartbeat)
+        activeSessionId?.let { reportActivityInBackground(it, false) }
         player.stop()
         pendingSession?.id?.let(::releaseInBackground)
         activeSessionId?.let(::releaseInBackground)
@@ -695,6 +725,7 @@ class MainActivity : AppCompatActivity(), Player.Listener, AnalyticsListener {
         private const val PREFERENCES = "nostalgiabox"
         private const val SERVER_URL = "server_url"
         private const val PLAYBACK_LOG_TAG = "NostalgiaPlayback"
+        private const val ANALYTICS_HEARTBEAT_MILLIS = 15_000L
     }
 }
 

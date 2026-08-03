@@ -1,0 +1,18 @@
+# Full collections selected for staged size reduction.
+/media/Movies/Disney VHS Collection
+/media/Shows/Batman: The Animated Series (1992)
+/media/Shows/Lilo & Stitch (2003)
+
+# Individually selected movies, specials, and episode outliers.
+/media/Movies/Disney Channel Original Movies/Twitches.2005..mp4
+/media/Movies/Disney Channel Original Movies/Jumping Ship (2001).ia.mp4
+/media/Movies/Disney Channel Original Movies/Wendy Wu Homecoming Warrior 2006 Disney (DCOM#64) 720p Webrip X264 Solar.mp4
+/media/Movies/Disney Channel Original Movies/Under Wraps (1997).mp4
+/media/Shows/The Fairly OddParents (2001)/Season 03/The Fairly OddParents (2001) - S03E09 - Abra Catastrophe♪.mp4
+/media/Shows/The Fairly OddParents (2001)/Season 04/The Fairly OddParents (2001) - S04E04 - Jimmy Timmy Power Hour.mp4
+/media/Shows/The Fairly OddParents (2001)/Season 04/The Fairly OddParents (2001) - S04E13 - Channel Chasers.mp4
+/media/Shows/The Fairly OddParents (2001)/Season 05/The Fairly OddParents (2001) - S05E11 - Jimmy Timmy Power Hour 2, When Nerds Collide♪.mp4
+/media/Shows/The Fairly OddParents (2001)/Season 05/The Fairly OddParents (2001) - S05E18 - Fairy Idol.mp4
+/media/Shows/The Fairly OddParents (2001)/Season 05/The Fairly OddParents (2001) - S05E19 - Jimmy Timmy Power Hour 3, The Jerkinators♪.mp4
+/media/Shows/Pokémon (1997)/Season 09/Pokémon (1997) - S09E26 - Pokemon Ranger! Deoxys Crisis!!.mp4
+/media/Shows/Wizards of Waverly Place (2007)/Season 01/Wizards of Waverly Place (2007) - S01E14.mp4

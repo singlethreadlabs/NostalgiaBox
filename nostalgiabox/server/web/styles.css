@@ -115,7 +115,8 @@ video {
 }
 
 button,
-input {
+input,
+.analytics-link {
   min-height: 2.5rem;
   border: 1px solid #85827a;
   border-radius: 0.25rem;
@@ -127,6 +128,14 @@ input {
 button {
   cursor: pointer;
   padding-inline: 0.75rem;
+}
+
+.analytics-link {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 0.75rem;
+  color: inherit;
+  text-decoration: none;
 }
 
 form {
