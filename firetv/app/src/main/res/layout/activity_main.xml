@@ -13,10 +13,6 @@
         app:show_buffering="when_playing"
         app:use_controller="false" />
 
-    <com.nostalgiabox.tv.RetroScreenOverlay
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
     <com.nostalgiabox.tv.TuningStaticView
         android:id="@+id/tuning_static"
         android:layout_width="match_parent"

@@ -29,19 +29,6 @@ body {
   place-items: center;
 }
 
-.television::after {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  pointer-events: none;
-  content: "";
-  background: radial-gradient(
-    ellipse at center,
-    transparent 64%,
-    rgb(0 0 0 / 16%) 100%
-  );
-}
-
 video {
   width: 100vw;
   height: 100vh;

@@ -18,9 +18,8 @@ parent PIN and then enters kid mode:
 - Returning to NostalgiaBox always relocks parent mode.
 - Leaving for Fire TV Home stops playback and releases the server session;
   returning creates exactly one fresh live session.
-- Channel changes use the same retro presentation as the web player: a
-  top-left monospace channel bug, program title, brief static flash, scanlines,
-  and a subtle CRT-style vignette.
+- Channel changes use a top-left monospace channel bug, program title, and a
+  brief static flash.
 
 The PIN is stored locally as a salted derived hash, not as plaintext. Five
 failed attempts impose a 30-second delay. If the PIN is forgotten, clear the

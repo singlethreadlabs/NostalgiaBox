@@ -4,53 +4,10 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RadialGradient
-import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
-import kotlin.math.hypot
 import kotlin.random.Random
 import java.util.Locale
-
-class RetroScreenOverlay @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-) : View(context, attrs) {
-    private val scanlinePaint = Paint().apply { color = Color.argb(22, 0, 0, 0) }
-    private val vignettePaint = Paint()
-    private val scanlineSpacing = resources.displayMetrics.density * 4f
-    private val scanlineHeight = resources.displayMetrics.density
-
-    init {
-        isClickable = false
-        isFocusable = false
-        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-        setLayerType(LAYER_TYPE_HARDWARE, null)
-    }
-
-    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
-        super.onSizeChanged(width, height, oldWidth, oldHeight)
-        val radius = hypot(width.toDouble(), height.toDouble()).toFloat() / 2f
-        vignettePaint.shader = RadialGradient(
-            width / 2f,
-            height / 2f,
-            radius,
-            intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT, Color.argb(105, 0, 0, 0)),
-            floatArrayOf(0f, 0.64f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        var y = 0f
-        while (y < height) {
-            canvas.drawRect(0f, y, width.toFloat(), y + scanlineHeight, scanlinePaint)
-            y += scanlineSpacing
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), vignettePaint)
-    }
-}
 
 class TuningStaticView @JvmOverloads constructor(
     context: Context,
