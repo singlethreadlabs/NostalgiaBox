@@ -29,6 +29,7 @@ struct StudioRootView: View {
     @State private var importFolder = false
     @State private var message: String?
     @State private var firstStationScan: FirstStationScan?
+    @State private var firstStationError: String?
     @State private var watchLaunchMessage: String?
 
     var body: some View {
@@ -52,7 +53,7 @@ struct StudioRootView: View {
             .navigationTitle("NostalgiaBox Studio")
         } detail: {
             switch selection ?? .home {
-            case .home: HomeView(importFolder: $importFolder, scan: $firstStationScan, createFirstStation: createFirstStation)
+            case .home: HomeView(importFolder: $importFolder, scan: $firstStationScan, scanError: $firstStationError, createFirstStation: createFirstStation)
             case .watch: WatchView(channels: channels, launchMessage: $watchLaunchMessage)
             case .channels: ChannelsView()
             case .schedule: ScheduleView()
@@ -107,6 +108,7 @@ struct StudioRootView: View {
 
     private func importMedia(from source: MediaSource) async {
         do {
+            firstStationError = nil
             StudioLog.info("Import requested for source \(source.displayName).")
             let existingMedia = try context.fetch(FetchDescriptor<LibraryMedia>())
             let (url, fromBookmark) = try resolvedSourceURL(source, media: existingMedia)
@@ -179,6 +181,7 @@ struct StudioRootView: View {
             )
         } catch {
             source.statusMessage = error.localizedDescription
+            firstStationError = "We couldn’t scan \(source.displayName). \(error.localizedDescription)"
             StudioLog.error("Import failed for \(source.displayName): \(error.localizedDescription)")
         }
     }
@@ -220,6 +223,7 @@ private enum SidebarDestination: Hashable { case home, watch, channels, schedule
 struct HomeView: View {
     @Binding var importFolder: Bool
     @Binding var scan: FirstStationScan?
+    @Binding var scanError: String?
     let createFirstStation: (String, StationMood) -> Void
     @Query private var channels: [StationChannel]
     @Query private var media: [LibraryMedia]
@@ -254,6 +258,10 @@ struct HomeView: View {
                                 .buttonStyle(.borderedProminent).disabled(scan.playableCount == 0)
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
                     }
+                } else if let scanError, channels.isEmpty {
+                    ContentUnavailableView("Couldn’t scan that folder", systemImage: "exclamationmark.triangle", description: Text(scanError))
+                    Button("Choose Another Folder", systemImage: "folder.badge.plus") { importFolder = true }
+                        .buttonStyle(.borderedProminent)
                 } else if channels.isEmpty {
                     GroupBox("Three simple steps") { Text("Choose a folder → review what can play → name your channel. We’ll build the automatic schedule for you.").frame(maxWidth: .infinity, alignment: .leading).padding(4) }
                 }
@@ -892,7 +900,11 @@ struct WatchView: View {
                     if let playbackMessage {
                         VStack(spacing: 10) { Image(systemName: "exclamationmark.triangle").font(.system(size: 48)); Text(playbackMessage).multilineTextAlignment(.center) }.foregroundStyle(.white)
                     } else if program == nil || program.flatMap({ p in media.first(where: { $0.id == p.mediaID }) })?.path.hasPrefix("demo://") == true {
-                        VStack { Image(systemName: "play.rectangle.fill").font(.system(size: 64)); Text(program.flatMap { p in media.first(where: { $0.id == p.mediaID }) }?.title ?? "Demo signal").font(.title2) }.foregroundStyle(.white)
+                        VStack(spacing: 10) {
+                            Image(systemName: "play.rectangle.fill").font(.system(size: 64))
+                            Text("Nothing is on yet").font(.title2)
+                            Text("Choose a media folder and create a channel from Home.").foregroundStyle(.white.opacity(0.75))
+                        }.foregroundStyle(.white)
                     } else if let channelBug {
                         ChannelBugView(bug: channelBug)
                             .padding(28)
@@ -944,7 +956,7 @@ struct WatchView: View {
 
     private func loadCurrentProgram() {
         guard let channel, let program = ScheduleEngine.current(from: programs.filter { $0.channelID == channel.id }), let item = media.first(where: { $0.id == program.mediaID }), !item.path.hasPrefix("demo://") else {
-            StudioLog.info("No real program is available for the selected channel; showing demo placeholder.")
+            StudioLog.info("No real program is available for the selected channel.")
             detachViewer()
             releaseSourceAccess()
             playbackMessage = nil

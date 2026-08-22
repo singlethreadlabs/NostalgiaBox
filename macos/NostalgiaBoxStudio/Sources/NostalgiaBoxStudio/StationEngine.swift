@@ -118,7 +118,10 @@ enum BookmarkStore {
     static var isSandboxed: Bool { ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil }
 
     static func create(for url: URL) throws -> Data {
-        try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        let hasSecurityScope = url.startAccessingSecurityScopedResource()
+        guard hasSecurityScope || !isSandboxed else { throw StationError.missingFolder }
+        defer { if hasSecurityScope { url.stopAccessingSecurityScopedResource() } }
+        return try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 
     static func resolve(_ data: Data) throws -> URL {
@@ -198,7 +201,8 @@ enum MediaScanner {
                 let valid = seconds.isFinite && seconds > 0 && !tracks.isEmpty
                 results.append(MediaScanResult(path: file.path, title: file.deletingPathExtension().lastPathComponent, duration: valid ? seconds : 0, fileSize: Int64(values.fileSize ?? 0), modifiedAt: values.contentModificationDate ?? .now, support: valid ? .playable : .unsupported, warning: valid ? nil : "No playable video track or duration."))
             } catch {
-                results.append(MediaScanResult(path: file.path, title: file.deletingPathExtension().lastPathComponent, duration: 0, fileSize: Int64(values.fileSize ?? 0), modifiedAt: values.contentModificationDate ?? .now, support: .unsupported, warning: "AVFoundation could not read this file."))
+                let reason = (error as NSError).localizedDescription
+                results.append(MediaScanResult(path: file.path, title: file.deletingPathExtension().lastPathComponent, duration: 0, fileSize: Int64(values.fileSize ?? 0), modifiedAt: values.contentModificationDate ?? .now, support: .unsupported, warning: "Could not open this video: \(reason)"))
             }
         }
         let sorted = results.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
