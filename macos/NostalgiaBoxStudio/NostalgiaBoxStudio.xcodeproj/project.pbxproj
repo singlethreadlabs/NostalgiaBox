@@ -1,0 +1,27 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+		A10000000000000000000001 /* Products */ = {isa = PBXGroup; children = (A10000000000000000000002 /* NostalgiaBox Studio.app */, ); name = Products; sourceTree = "<group>"; };
+		A10000000000000000000002 /* NostalgiaBox Studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NostalgiaBox Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000003 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Sources/NostalgiaBoxStudio; sourceTree = "<group>"; };
+		A10000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A10000000000000000000017 /* Assets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* Assets.xcassets */; };
+		A10000000000000000000005 /* Main Group */ = {isa = PBXGroup; children = (A10000000000000000000003 /* Sources */, A10000000000000000000004 /* Assets.xcassets */, A10000000000000000000001 /* Products */, ); sourceTree = "<group>"; };
+		A10000000000000000000006 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000007 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000008 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000017 /* Assets in Resources */, ); runOnlyForDeploymentPostprocessing = 0; };
+		A10000000000000000000009 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = NostalgiaBoxStudio.entitlements; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "NostalgiaBox Studio"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment"; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.singlethreadlabs.nostalgiabox.studio; PRODUCT_NAME = "NostalgiaBox Studio"; SDKROOT = macosx; SWIFT_VERSION = 6.0; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; }; name = Debug; };
+		A10000000000000000000010 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { CODE_SIGN_ENTITLEMENTS = NostalgiaBoxStudio.entitlements; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "NostalgiaBox Studio"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment"; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.singlethreadlabs.nostalgiabox.studio; PRODUCT_NAME = "NostalgiaBox Studio"; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 6.0; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; }; name = Release; };
+		A10000000000000000000011 /* Project Config */ = {isa = XCBuildConfiguration; buildSettings = { }; name = Debug; };
+		A10000000000000000000012 /* Project Release Config */ = {isa = XCBuildConfiguration; buildSettings = { }; name = Release; };
+		A10000000000000000000013 /* Target Configurations */ = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000009 /* Debug */, A10000000000000000000010 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A10000000000000000000014 /* Project Configurations */ = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000011 /* Project Config */, A10000000000000000000012 /* Project Release Config */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A10000000000000000000015 /* NostalgiaBox Studio */ = {isa = PBXNativeTarget; buildConfigurationList = A10000000000000000000013 /* Target Configurations */; buildPhases = (A10000000000000000000007 /* Sources */, A10000000000000000000006 /* Frameworks */, A10000000000000000000008 /* Resources */, ); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (A10000000000000000000003 /* Sources */, ); name = "NostalgiaBox Studio"; productName = "NostalgiaBox Studio"; productReference = A10000000000000000000002 /* NostalgiaBox Studio.app */; productType = "com.apple.product-type.application"; };
+		A10000000000000000000016 /* Project */ = {isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2660; LastUpgradeCheck = 2660; TargetAttributes = { A10000000000000000000015 = { CreatedOnToolsVersion = 26.6; }; }; }; buildConfigurationList = A10000000000000000000014 /* Project Configurations */; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base, ); mainGroup = A10000000000000000000005 /* Main Group */; minimizedProjectReferenceProxies = 1; preferredProjectObjectVersion = 77; productRefGroup = A10000000000000000000001 /* Products */; projectDirPath = ""; projectRoot = ""; targets = (A10000000000000000000015 /* NostalgiaBox Studio */, ); };
+	};
+	rootObject = A10000000000000000000016 /* Project */;
+}
