@@ -123,5 +123,6 @@ channels:
     name: Pocket Monsters
     shows:
       - "/media/Channels/Pocket Monsters"
+      - "/media/TV/Pokémon/Season 19"
     bumpers:
       - "/media/Extras/NostalgiaBox-Bumpers/pocket-monsters.mp4"
