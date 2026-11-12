@@ -123,3 +123,5 @@ channels:
     name: Pocket Monsters
     shows:
       - "/media/Channels/Pocket Monsters"
+    bumpers:
+      - "/media/Extras/NostalgiaBox-Bumpers/pocket-monsters.mp4"
