@@ -143,6 +143,8 @@ class PlaybackManager:
                 "libx264",
                 "-preset",
                 "veryfast",
+                "-tune",
+                "zerolatency",
                 "-crf",
                 "21",
                 "-force_key_frames",

@@ -533,7 +533,8 @@ def test_transcoded_hls_starts_before_playlist_request_deadline(tmp_path):
     subprocess.run([
         'ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi',
         '-i', 'testsrc2=size=160x120:rate=24:duration=20',
-        '-c:v', 'mpeg4', str(path),
+        '-f', 'lavfi', '-i', 'sine=frequency=440:duration=20',
+        '-c:v', 'mpeg4', '-c:a', 'pcm_s16le', '-shortest', str(path),
     ], check=True)
     now = time.time()
     program = Program(
