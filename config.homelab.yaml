@@ -116,6 +116,9 @@ channels:
       - "/media/Shows/Mega Man (1994)"
       - "/media/Shows/Super Mario World (1991)"
       - "/media/Shows/The Legend of Zelda (1989)"
+    ordered_shows:
+      - "/media/Shows/Dragon Ball Z (1989)"
+      - "/media/Shows/Pokémon (1997)"
     bumpers:
       - /media/Extras/NostalgiaBox-Bumpers/nova-action.mp4
 

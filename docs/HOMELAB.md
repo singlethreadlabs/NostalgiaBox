@@ -83,6 +83,72 @@ Record the previously deployed Git commit before upgrading. To roll back,
 check out that commit, rebuild, and run `docker compose up -d`. Back up the
 SQLite file before upgrades that introduce schema migrations.
 
+## Episode rotation and ordered runs
+
+The server remembers aired selections per channel and show in SQLite. It picks
+unseen episodes first, then the least recently aired episode. Each show gets a
+turn before another show repeats. History survives restarts, future schedule
+rebuilds, and the seven-day schedule cleanup.
+
+Use `ordered_shows` on a channel to play selected show folders in natural
+season/episode filename order. Each run wraps after its last available episode
+and resumes after the last aired episode when future programming is rebuilt.
+Folders omitted from this list retain the no-early-repeat rotation.
+
+```yaml
+channels:
+  - number: 10
+    name: Nova Action
+    shows:
+      - /media/Shows/Dragon Ball Z (1989)
+      - /media/Shows/Pokémon (1997)
+    ordered_shows:
+      - /media/Shows/Dragon Ball Z (1989)
+```
+
+The prepared `config.homelab.yaml` enables ordered runs for Dragon Ball Z and
+Pokémon on Nova Action. Editing configuration takes effect on server restart.
+
+## Bumper rotation
+
+After each episode, the server plays a configured channel bumper. When a
+channel has multiple bumpers, each plays before another repeats. Optional
+configured commercials follow the bumper, then the next episode begins.
+Add more completed bumper videos to a configured bumper folder to include
+them through automatic media intake.
+
+Future programming is rebuilt when the catalog changes or the server starts.
+Existing TV API fields and delivery modes are preserved.
+
+## Automatic media intake
+
+The worker scans configured folders every 60 seconds. A new or changed file must
+have the same size and modification time for at least 120 seconds across scans
+before intake probes it. Files are validated for a real video stream, finite
+positive duration, container, and codecs. The server chooses direct playback,
+remuxing, or transcoding from that information. This check reads media metadata
+and does not decode every frame.
+
+Initial provisioning and newly configured channels are probed immediately.
+Later additions to existing channels wait for stable observations, including
+after a server restart. Keep downloads under temporary names or outside the
+configured folders, then rename completed files into place for a reliable
+completion boundary.
+
+Invalid additions are skipped while valid additions enter rotation. Invalid
+files are retried when their size or modification time changes. Transient probe
+timeouts are retried on subsequent scans. A missing configured folder or an
+empty show channel rejects the refresh and retains the previous catalog and
+schedule. File probes run before the short database update, and file metadata
+is checked again before committing the catalog and schedule together.
+
+The manual `POST /api/v1/admin/refresh` endpoint validates immediately. Use it
+for completed additions when you want to bypass the observation delay.
+
+`GET /api/v1/health` includes `media_scan_status`, `last_media_scan_at`,
+`pending_media`, and `rejected_media`. Scan failures are also written to the
+server logs.
+
 ## Browser controls
 
 - Up/down arrows or `CH+`/`CH-`: change channels

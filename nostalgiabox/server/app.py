@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
+import threading
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -23,6 +25,8 @@ from .media import MediaIndexer
 from .playback import PlaybackManager
 from .schedule import Program, Scheduler
 from .settings import ServerSettings
+
+log = logging.getLogger(__name__)
 
 
 class PlaybackRequest(BaseModel):
@@ -43,7 +47,19 @@ class ServerState:
         self.indexer = MediaIndexer(
             self.database, self.config, settings.media_root
         )
-        self.indexed_count = self.indexer.refresh()
+        self._refresh_lock = threading.Lock()
+        self.stopping = threading.Event()
+        self.last_media_scan_at = None
+        self.media_scan_status = "starting"
+        with self.database.connect() as connection:
+            existing_channels = {row[0] for row in connection.execute(
+                "SELECT DISTINCT channel_number FROM channel_media WHERE kind='show'"
+            )}
+        scan = self.indexer.prepare(
+            stable_seconds=120,
+            bootstrap_channels=set(self.config.channel_numbers()) - existing_channels,
+        )
+        self.indexed_count = self.indexer.refresh(scan=scan, rebuild_schedule=True)
         self.scheduler = Scheduler(self.database, self.config)
         self.scheduler.fill()
         self.playback = PlaybackManager(
@@ -55,11 +71,25 @@ class ServerState:
         self.analytics.cleanup(inactivity_seconds=settings.session_ttl_seconds)
         self.started_at = time.time()
 
-    def refresh(self) -> int:
-        count = self.indexer.refresh()
-        self.scheduler.fill()
-        self.indexed_count = count
-        return count
+    def refresh(self, *, automatic: bool = False) -> int:
+        with self._refresh_lock:
+            scan = self.indexer.prepare(stable_seconds=120 if automatic else 0)
+            with self.scheduler._lock, self.database.connect() as connection:
+                count = self.indexer.refresh(scan=scan, connection=connection)
+                self.scheduler.fill(connection=connection)
+            self.indexed_count = count
+            self.last_media_scan_at = time.time()
+            self.media_scan_status = "ready"
+            return count
+
+    def maintain(self) -> None:
+        while not self.stopping.is_set():
+            try:
+                self.refresh(automatic=True)
+            except Exception:
+                self.media_scan_status = "error"
+                log.exception("automatic media scan failed; retaining the previous catalog")
+            self.stopping.wait(60)
 
 
 def _program_payload(program: Program, now: float) -> dict:
@@ -89,10 +119,15 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
                 )
 
         task = asyncio.create_task(cleanup())
+        maintenance = asyncio.create_task(asyncio.to_thread(state.maintain))
         try:
             yield
         finally:
+            state.stopping.set()
+            await maintenance
             task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
             state.playback.close()
 
     app = FastAPI(
@@ -112,6 +147,10 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
         return {
             "status": "ready",
             "indexed_media": server.indexed_count,
+            "media_scan_status": server.media_scan_status,
+            "last_media_scan_at": server.last_media_scan_at,
+            "pending_media": server.indexer.pending_count,
+            "rejected_media": server.indexer.rejected_count,
             "channels": len(server.config.channels),
             "ffmpeg": shutil.which("ffmpeg") is not None,
             "ffprobe": shutil.which("ffprobe") is not None,
@@ -219,6 +258,8 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
         path = Path(row["path"]).resolve()
         if not path.is_relative_to(server.settings.media_root.resolve()):
             raise HTTPException(status_code=403, detail="media path rejected")
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="media file not found")
         return FileResponse(path, media_type="video/mp4")
 
     @app.get("/api/v1/playback-sessions/{session_id}/stream.mp4")
