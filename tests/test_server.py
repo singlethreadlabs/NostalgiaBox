@@ -529,12 +529,15 @@ def test_real_ffmpeg_remux_and_transcode_hls(tmp_path):
 def test_transcoded_hls_starts_before_playlist_request_deadline(tmp_path):
     from nostalgiabox.server.schedule import Program
 
-    path = tmp_path / 'long-episode.avi'
+    path = tmp_path / 'long-episode.mkv'
+    subtitles = tmp_path / 'later-dialogue.srt'
+    subtitles.write_text('1\n00:00:14,000 --> 00:00:15,000\nLater dialogue\n\n')
     subprocess.run([
         'ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi',
         '-i', 'testsrc2=size=160x120:rate=24:duration=20',
         '-f', 'lavfi', '-i', 'sine=frequency=440:duration=20',
-        '-c:v', 'mpeg4', '-c:a', 'pcm_s16le', '-shortest', str(path),
+        '-i', str(subtitles),
+        '-c:v', 'mpeg4', '-c:a', 'pcm_s16le', '-c:s', 'srt', '-t', '20', str(path),
     ], check=True)
     now = time.time()
     program = Program(

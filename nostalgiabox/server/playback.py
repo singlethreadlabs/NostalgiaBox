@@ -164,6 +164,11 @@ class PlaybackManager:
             "-re",
             "-i",
             str(session.program.path),
+            # Match indexed A/V streams to prevent sparse subtitle mux delays.
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a:0?",
             *codecs,
             "-f",
             "hls",
