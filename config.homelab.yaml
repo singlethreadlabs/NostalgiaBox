@@ -118,3 +118,8 @@ channels:
       - "/media/Shows/The Legend of Zelda (1989)"
     bumpers:
       - /media/Extras/NostalgiaBox-Bumpers/nova-action.mp4
+
+  - number: 11
+    name: Pocket Monsters
+    shows:
+      - "/media/Channels/Pocket Monsters"
