@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import shutil
 import subprocess
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
 from nostalgiabox.channel import scan_episodes
 from nostalgiabox.config import Config
-from nostalgiabox.probe import DEFAULT_EPISODE_SECONDS
 
 from .database import Database
 
@@ -44,7 +45,7 @@ class MediaProbe:
 
 def probe_media(path: Path, *, timeout: float = 20.0) -> MediaProbe:
     if shutil.which("ffprobe") is None:
-        return MediaProbe(DEFAULT_EPISODE_SECONDS, None, None, None)
+        raise RuntimeError("ffprobe is required to validate server media")
     result = subprocess.run(
         [
             "ffprobe",
@@ -68,8 +69,10 @@ def probe_media(path: Path, *, timeout: float = 20.0) -> MediaProbe:
     video = next((s for s in streams if s.get("codec_type") == "video"), {})
     audio = next((s for s in streams if s.get("codec_type") == "audio"), {})
     duration_raw = data.get("format", {}).get("duration") or video.get("duration")
-    duration = float(duration_raw) if duration_raw else DEFAULT_EPISODE_SECONDS
-    if duration <= 0:
+    duration = float(duration_raw) if duration_raw else 0.0
+    if not video.get("codec_name"):
+        raise ValueError(f"media has no video stream: {path}")
+    if not math.isfinite(duration) or duration <= 0:
         raise ValueError(f"media has no positive duration: {path}")
     return MediaProbe(
         duration=duration,
@@ -84,6 +87,13 @@ class MediaIndexer:
         self.database = database
         self.config = config
         self.media_root = media_root.resolve()
+        self._observed: dict[str, tuple[int, int, float]] = {}
+        self._rejected: dict[str, tuple[int, int]] = {}
+        self.pending_count = 0
+
+    @property
+    def rejected_count(self) -> int:
+        return len(self._rejected)
 
     def _validated_path(self, path: Path) -> Path:
         resolved = path.resolve()
@@ -111,9 +121,16 @@ class MediaIndexer:
                     recursive=self.config.scan_recursive,
                 )
             )
-        return sorted(files, key=lambda path: str(path).lower())
+        return sorted(
+            {self._validated_path(path) for path in files},
+            key=lambda path: str(path).lower(),
+        )
 
-    def refresh(self) -> int:
+    def prepare(
+        self, *, stable_seconds: float = 0, now: Optional[float] = None, bootstrap_channels=(),
+    ):
+        """Probe outside the writer transaction and wait for unchanged downloads."""
+        now = time.time() if now is None else now
         assignments: list[tuple[int, str, str, Path]] = []
         for channel in self.config.channels:
             pools = {
@@ -128,114 +145,126 @@ class MediaIndexer:
                         (channel.number, kind, pool_key, path)
                         for path in self._files((root,))
                     )
-
-        if not assignments:
-            raise ValueError("no playable media found in configured channel pools")
-
-        now = time.time()
-        active_paths = {str(path.resolve()) for _, _, _, path in assignments}
-        log.info(
-            "indexing %d unique media files across %d channel assignments",
-            len(active_paths),
-            len(assignments),
-        )
         with self.database.connect() as connection:
-            connection.execute("DELETE FROM channel_media")
             existing = {
                 row["path"]: row
                 for row in connection.execute("SELECT * FROM media_items")
             }
-            ids: dict[str, int] = {}
-            processed = 0
-            for _, kind, _, path in assignments:
-                resolved = str(path.resolve())
-                if resolved in ids:
+        bootstrap_paths = {str(path) for number, _, _, path in assignments if number in bootstrap_channels}
+        items: dict[str, dict] = {}
+        seen: set[str] = set()
+        for _, kind, _, path in assignments:
+            resolved = str(path)
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            stat = path.stat()
+            signature = (stat.st_size, stat.st_mtime_ns)
+            if self._rejected.get(resolved) != signature:
+                self._rejected.pop(resolved, None)
+            previous = existing.get(resolved)
+            if previous and signature == (previous["size"], previous["mtime_ns"]):
+                items[resolved] = dict(previous)
+                continue
+            if stable_seconds and resolved not in bootstrap_paths:
+                observed = self._observed.get(resolved)
+                if observed is None or observed[:2] != signature:
+                    self._observed[resolved] = (*signature, now)
                     continue
-                stat = path.stat()
-                row = existing.get(resolved)
-                if (
-                    row is not None
-                    and row["size"] == stat.st_size
-                    and row["mtime_ns"] == stat.st_mtime_ns
-                ):
-                    media_id = int(row["id"])
-                else:
-                    probe = probe_media(path)
-                    connection.execute(
-                        """
-                        INSERT INTO media_items
-                            (path, kind, duration, container, video_codec, audio_codec,
-                             size, mtime_ns, indexed_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(path) DO UPDATE SET
-                            kind=excluded.kind, duration=excluded.duration,
-                            container=excluded.container,
-                            video_codec=excluded.video_codec,
-                            audio_codec=excluded.audio_codec, size=excluded.size,
-                            mtime_ns=excluded.mtime_ns, indexed_at=excluded.indexed_at
-                        """,
-                        (
-                            resolved,
-                            kind,
-                            probe.duration,
-                            probe.container,
-                            probe.video_codec,
-                            probe.audio_codec,
-                            stat.st_size,
-                            stat.st_mtime_ns,
-                            now,
-                        ),
-                    )
-                    media_id = int(
-                        connection.execute(
-                            "SELECT id FROM media_items WHERE path=?", (resolved,)
-                        ).fetchone()["id"]
-                    )
-                ids[resolved] = media_id
-                processed += 1
-                if processed % 100 == 0 or processed == len(active_paths):
-                    log.info("indexed %d/%d unique media files", processed, len(active_paths))
+                if now - observed[2] < stable_seconds or self._rejected.get(resolved) == signature:
+                    continue
+            try:
+                probe = probe_media(path)
+                after = path.stat()
+                if signature != (after.st_size, after.st_mtime_ns):
+                    raise ValueError(f"media changed while probing: {path}")
+            except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
+                if not stable_seconds:
+                    raise
+                if isinstance(exc, ValueError):
+                    self._rejected[resolved] = signature
+                log.exception("media intake rejected %s", path)
+                continue
+            self._rejected.pop(resolved, None)
+            items[resolved] = {
+                "path": resolved, "kind": kind, "duration": probe.duration,
+                "container": probe.container, "video_codec": probe.video_codec,
+                "audio_codec": probe.audio_codec, "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns, "indexed_at": now,
+            }
+        paths = {str(path) for _, _, _, path in assignments}
+        self._observed = {key: value for key, value in self._observed.items() if key in paths}
+        self._rejected = {key: value for key, value in self._rejected.items() if key in paths}
+        ready = [entry for entry in assignments if str(entry[3]) in items]
+        self.pending_count = len(paths - items.keys() - self._rejected.keys())
+        ready_channels = {number for number, kind, _, _ in ready if kind == "show"}
+        missing = set(self.config.channel_numbers()) - ready_channels
+        if missing:
+            raise ValueError(f"no playable show media for channels {sorted(missing)}")
+        return ready, items
 
-            for channel_number, kind, pool_key, path in assignments:
+    def refresh(self, *, scan=None, connection=None, rebuild_schedule: bool = False) -> int:
+        assignments, items = self.prepare() if scan is None else scan
+        now = time.time()
+        transaction = self.database.connect() if connection is None else nullcontext(connection)
+        with transaction as connection:
+            for path, item in items.items():
+                validated = self._validated_path(Path(path))
+                if str(validated) != path:
+                    raise ValueError(f"media path changed before indexing: {path}")
+                stat = validated.stat()
+                if (stat.st_size, stat.st_mtime_ns) != (item["size"], item["mtime_ns"]):
+                    raise ValueError(f"media changed before indexing: {path}")
+            current = {
+                (row["channel_number"], row["kind"], row["pool_key"], row["path"])
+                for row in connection.execute(
+                    """SELECT cm.*, m.path FROM channel_media cm
+                       JOIN media_items m ON m.id=cm.media_id"""
+                )
+            }
+            desired = {(number, kind, key, str(path)) for number, kind, key, path in assignments}
+            changed = connection.execute(
+                "SELECT path, size, mtime_ns FROM media_items"
+            ).fetchall()
+            signatures = {row["path"]: (row["size"], row["mtime_ns"]) for row in changed}
+            if not rebuild_schedule and current == desired and all(
+                signatures.get(path) == (item["size"], item["mtime_ns"])
+                for path, item in items.items()
+            ):
+                return len(items)
+            self.database.remember_programs(connection, now)
+            connection.execute("DELETE FROM channel_media")
+            for item in items.values():
                 connection.execute(
                     """
-                    INSERT OR IGNORE INTO channel_media
-                        (channel_number, media_id, kind, pool_key)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (
-                        channel_number,
-                        ids[str(path.resolve())],
-                        kind,
-                        pool_key,
-                    ),
+                    INSERT INTO media_items
+                        (path, kind, duration, container, video_codec, audio_codec,
+                         size, mtime_ns, indexed_at)
+                    VALUES (:path, :kind, :duration, :container, :video_codec, :audio_codec,
+                            :size, :mtime_ns, :indexed_at)
+                    ON CONFLICT(path) DO UPDATE SET
+                        duration=excluded.duration, container=excluded.container,
+                        video_codec=excluded.video_codec, audio_codec=excluded.audio_codec,
+                        size=excluded.size, mtime_ns=excluded.mtime_ns, indexed_at=excluded.indexed_at
+                    """, item,
                 )
-
-            # Preserve the currently airing item when it still belongs to the
-            # channel, but rebuild upcoming programming so new media can enter
-            # the rotation. If the current file was removed, drop it as well.
+            ids = {row["path"]: row["id"] for row in connection.execute("SELECT id, path FROM media_items")}
+            connection.executemany(
+                """INSERT OR IGNORE INTO channel_media
+                   (channel_number, media_id, kind, pool_key) VALUES (?, ?, ?, ?)""",
+                [(number, ids[str(path)], kind, key) for number, kind, key, path in assignments],
+            )
             connection.execute("DELETE FROM programs WHERE starts_at > ?", (now,))
             connection.execute(
-                """
-                DELETE FROM programs
-                WHERE ends_at > ?
-                  AND NOT EXISTS (
-                    SELECT 1 FROM channel_media cm
-                    WHERE cm.channel_number=programs.channel_number
-                      AND cm.media_id=programs.media_id
-                  )
-                """,
-                (now,),
+                """DELETE FROM programs WHERE ends_at > ? AND NOT EXISTS (
+                       SELECT 1 FROM channel_media cm
+                       WHERE cm.channel_number=programs.channel_number
+                         AND cm.media_id=programs.media_id
+                   )""", (now,),
             )
-            stale = set(existing) - active_paths
-            if stale:
-                placeholders = ",".join("?" for _ in stale)
-                connection.execute(
-                    f"""
-                    DELETE FROM media_items
-                    WHERE path IN ({placeholders})
-                      AND id NOT IN (SELECT media_id FROM programs)
-                    """,
-                    tuple(stale),
-                )
-        return len(active_paths)
+            connection.execute(
+                """DELETE FROM media_items WHERE id NOT IN (SELECT media_id FROM channel_media)
+                   AND id NOT IN (SELECT media_id FROM programs)
+"""
+            )
+        return len(items)

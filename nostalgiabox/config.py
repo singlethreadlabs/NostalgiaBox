@@ -84,10 +84,13 @@ class ChannelConfig:
     shows: tuple[Path, ...] = ()
     bumpers: tuple[Path, ...] = ()
     commercials: tuple[Path, ...] = ()
+    ordered_shows: tuple[Path, ...] = ()
 
     def __post_init__(self) -> None:
         if self.number < 0:
             raise ConfigError(f"channel number must be >= 0, got {self.number}")
+        if not set(self.ordered_shows).issubset(self.shows or (self.path,)):
+            raise ConfigError("ordered_shows must reference a configured show folder")
         if not self.name:
             raise ConfigError(f"channel {self.number} is missing a name")
 
@@ -201,6 +204,10 @@ def _parse_channels(raw: Any, base: Optional[Path], default_shuffle: bool) -> Li
     for i, entry in enumerate(raw):
         if not isinstance(entry, dict):
             raise ConfigError(f"channel #{i} must be a mapping, got {type(entry).__name__}")
+        ordered_values = entry.get("ordered_shows")
+        ordered_shows = () if ordered_values == [] else _parse_path_list(
+            ordered_values, "ordered_shows", base
+        )
         show_values = _parse_path_list(entry.get("shows"), "shows", base)
         if "path" not in entry and not show_values:
             raise ConfigError(f"channel #{i} must define 'path' or a non-empty 'shows' list")
@@ -220,6 +227,7 @@ def _parse_channels(raw: Any, base: Optional[Path], default_shuffle: bool) -> Li
                 exclude=_parse_str_list(entry.get("exclude"), "exclude"),
                 exclude_seasons=_parse_seasons(entry.get("exclude_seasons")),
                 shows=show_values,
+                ordered_shows=ordered_shows,
                 bumpers=_parse_path_list(entry.get("bumpers"), "bumpers", base),
                 commercials=_parse_path_list(
                     entry.get("commercials"), "commercials", base

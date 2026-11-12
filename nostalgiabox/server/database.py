@@ -49,6 +49,13 @@ CREATE INDEX IF NOT EXISTS programs_latest_end
 CREATE INDEX IF NOT EXISTS programs_latest_kind
     ON programs(channel_number, kind, starts_at DESC);
 
+CREATE TABLE IF NOT EXISTS selection_history (
+    channel_number INTEGER NOT NULL,
+    pool_key TEXT NOT NULL,
+    media_id INTEGER NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
+    last_started_at REAL NOT NULL,
+    PRIMARY KEY(channel_number, pool_key, media_id)
+);
 CREATE TABLE IF NOT EXISTS viewing_sessions (
     id TEXT PRIMARY KEY,
     program_id INTEGER,
@@ -107,3 +114,23 @@ class Database:
                     "ALTER TABLE channel_media "
                     "ADD COLUMN pool_key TEXT NOT NULL DEFAULT ''"
                 )
+
+    @staticmethod
+    def remember_programs(connection: sqlite3.Connection, now: float) -> None:
+        """Keep aired selections after schedule cleanup or a future rebuild."""
+        connection.execute(
+            """
+            INSERT INTO selection_history
+                (channel_number, pool_key, media_id, last_started_at)
+            SELECT p.channel_number, cm.pool_key, p.media_id, MAX(p.starts_at)
+            FROM programs p JOIN channel_media cm
+              ON cm.channel_number=p.channel_number
+             AND cm.media_id=p.media_id AND cm.kind=p.kind
+            WHERE p.starts_at<=?
+            GROUP BY p.channel_number, cm.pool_key, p.media_id
+            ON CONFLICT(channel_number, pool_key, media_id) DO UPDATE SET
+                last_started_at=MAX(last_started_at, excluded.last_started_at)
+            WHERE excluded.last_started_at>selection_history.last_started_at
+            """,
+            (now,),
+        )

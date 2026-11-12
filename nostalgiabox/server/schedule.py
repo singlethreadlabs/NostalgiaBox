@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import random
+import re
 import threading
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -62,40 +64,41 @@ class Scheduler:
         )
 
     @staticmethod
-    def _pick(pool, previous_id: Optional[int], rng: random.Random):
-        choices = [row for row in pool if row["id"] != previous_id] or pool
-        return rng.choice(choices)
+    def _pick_recent(pool, history, rng: random.Random):
+        oldest = min(history.get(row["id"], float("-inf")) for row in pool)
+        return rng.choice([
+            row for row in pool if history.get(row["id"], float("-inf")) == oldest
+        ])
 
-    @classmethod
-    def _pick_show(
-        cls,
-        pool,
-        previous_id: Optional[int],
-        previous_pool: Optional[str],
-        rng: random.Random,
-        show_queue: Optional[list[str]] = None,
-    ):
+    @staticmethod
+    def _pick_show(pool, history, rng: random.Random, ordered_shows):
         by_show: dict[str, list] = {}
         for row in pool:
             by_show.setdefault(row["pool_key"], []).append(row)
-        if show_queue is None:
-            show_queue = []
-        if not show_queue:
-            show_queue.extend(by_show)
-            rng.shuffle(show_queue)
-            if (
-                len(show_queue) > 1
-                and previous_pool is not None
-                and show_queue[-1] == previous_pool
-            ):
-                show_queue[0], show_queue[-1] = show_queue[-1], show_queue[0]
-        selected_show = show_queue.pop()
-        return cls._pick(by_show[selected_show], previous_id, rng)
+        last_show = {
+            key: max((history.get(row["id"], float("-inf")) for row in rows))
+            for key, rows in by_show.items()
+        }
+        oldest = min(last_show.values())
+        key = rng.choice([key for key, last in last_show.items() if last == oldest])
+        episodes = by_show[key]
+        if key in ordered_shows:
+            episodes.sort(key=lambda row: [
+                (0, int(part)) if part.isdigit() else (1, part.casefold())
+                for part in re.split(r"(\d+)", row["path"])
+            ])
+            previous = max(episodes, key=lambda row: history.get(row["id"], float("-inf")))
+            if previous["id"] not in history:
+                return episodes[0]
+            return episodes[(episodes.index(previous) + 1) % len(episodes)]
+        return Scheduler._pick_recent(episodes, history, rng)
 
-    def fill(self, now: Optional[float] = None) -> None:
+    def fill(self, now: Optional[float] = None, *, connection=None) -> None:
         now = time.time() if now is None else now
         target = now + self.config.schedule_horizon_hours * 3600
-        with self._lock, self.database.connect() as connection:
+        transaction = self.database.connect() if connection is None else nullcontext(connection)
+        with self._lock, transaction as connection:
+            self.database.remember_programs(connection, now)
             for channel in self.config.channels:
                 shows = self._pool(connection, channel.number, "show")
                 if not shows:
@@ -111,47 +114,28 @@ class Scheduler:
                     """,
                     (channel.number,),
                 ).fetchone()
-                cursor = float(last["ends_at"]) if last else now
-                previous: dict[str, Optional[int]] = {}
-                for kind in ("show", "bumper", "commercial"):
-                    previous_row = connection.execute(
+                cursor = max(float(last["ends_at"]), now) if last else now
+                history = {
+                    int(row["media_id"]): float(row["last_started_at"])
+                    for row in connection.execute(
                         """
-                        SELECT media_id FROM programs
-                        WHERE channel_number=? AND kind=?
-                        ORDER BY starts_at DESC LIMIT 1
+                        SELECT media_id, MAX(last_started_at) AS last_started_at FROM (
+                            SELECT media_id, last_started_at FROM selection_history
+                            WHERE channel_number=?
+                            UNION ALL
+                            SELECT media_id, starts_at FROM programs WHERE channel_number=?
+                        ) GROUP BY media_id
                         """,
-                        (channel.number, kind),
-                    ).fetchone()
-                    previous[kind] = (
-                        int(previous_row["media_id"]) if previous_row else None
+                        (channel.number, channel.number),
                     )
-                previous_show_row = connection.execute(
-                    """
-                    SELECT cm.pool_key FROM programs p
-                    JOIN channel_media cm
-                      ON cm.channel_number=p.channel_number
-                     AND cm.media_id=p.media_id
-                     AND cm.kind='show'
-                    WHERE p.channel_number=? AND p.kind='show'
-                    ORDER BY p.starts_at DESC LIMIT 1
-                    """,
-                    (channel.number,),
-                ).fetchone()
-                previous_show_pool = (
-                    str(previous_show_row["pool_key"])
-                    if previous_show_row is not None
-                    else None
-                )
-                seed = hashlib.sha256(
-                    f"{channel.number}:{cursor:.6f}".encode()
-                ).digest()
+                }
+                ordered_shows = {str(path.resolve()) for path in channel.ordered_shows}
+                seed = hashlib.sha256(f"{channel.number}:{cursor:.6f}".encode()).digest()
                 rng = random.Random(seed)
-                show_queue: list[str] = []
-
                 initial_show = None
-                if last is None:
+                if last is None and not history:
                     initial_show = self._pick_show(
-                        shows, None, None, rng, show_queue
+                        shows, history, rng, ordered_shows
                     )
                     cursor = now - rng.uniform(
                         0,
@@ -159,37 +143,30 @@ class Scheduler:
                     )
 
                 while cursor < target:
-                    sequence = [("show", shows)]
-                    if bumpers:
-                        sequence.append(("bumper", bumpers))
-                    if commercials:
-                        sequence.extend(
-                            ("commercial", commercials) for _ in range(rng.randint(1, 2))
-                        )
-                    for kind, pool in sequence:
-                        if kind == "show":
-                            row = initial_show or self._pick_show(
-                                pool,
-                                previous[kind],
-                                previous_show_pool,
-                                rng,
-                                show_queue,
-                            )
-                            initial_show = None
-                            previous_show_pool = str(row["pool_key"])
-                        else:
-                            row = self._pick(pool, previous[kind], rng)
+                    show = initial_show or self._pick_show(shows, history, rng, ordered_shows)
+                    sequence = []
+                    if last is not None or initial_show is None:
+                        if bumpers:
+                            sequence.append(("bumper", self._pick_recent(bumpers, history, rng)))
+                        if commercials:
+                            for _ in range(rng.randint(1, 2)):
+                                commercial = self._pick_recent(commercials, history, rng)
+                                sequence.append(("commercial", commercial))
+                                history[int(commercial["id"])] = cursor
+                    sequence.append(("show", show))
+                    initial_show = None
+                    for kind, row in sequence:
                         starts_at = cursor
                         cursor += float(row["duration"])
                         connection.execute(
                             """
                             INSERT OR IGNORE INTO programs
-                                (channel_number, media_id, kind, starts_at, ends_at)
+                            (channel_number, media_id, kind, starts_at, ends_at)
                             VALUES (?, ?, ?, ?, ?)
                             """,
                             (channel.number, row["id"], kind, starts_at, cursor),
                         )
-                        previous[kind] = int(row["id"])
+                        history[int(row["id"])] = starts_at
             connection.execute("DELETE FROM programs WHERE ends_at < ?", (now - 604800,))
 
     def now(self, channel_number: int, at: Optional[float] = None) -> Program:

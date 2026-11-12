@@ -246,3 +246,11 @@ def test_bad_schedule_timezone_rejected(tmp_path):
                 "channels": [{"path": str(tmp_path / "a")}],
             }
         )
+
+
+def test_ordered_show_must_belong_to_channel(tmp_path):
+    with pytest.raises(ConfigError, match="ordered_shows"):
+        config_from_dict({"channels": [{
+            "path": str(tmp_path / "Arthur"),
+            "ordered_shows": [str(tmp_path / "Other")],
+        }]})
