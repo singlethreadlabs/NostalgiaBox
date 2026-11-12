@@ -145,6 +145,8 @@ class PlaybackManager:
                 "veryfast",
                 "-crf",
                 "21",
+                "-force_key_frames",
+                "expr:gte(t,n_forced*4)",
                 "-c:a",
                 "aac",
                 "-b:a",

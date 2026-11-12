@@ -523,3 +523,34 @@ def test_real_ffmpeg_remux_and_transcode_hls(tmp_path):
             assert manager.release(browser_session.id)
     finally:
         manager.close()
+
+
+@pytest.mark.skipif(shutil.which('ffmpeg') is None, reason='FFmpeg unavailable')
+def test_transcoded_hls_starts_before_playlist_request_deadline(tmp_path):
+    from nostalgiabox.server.schedule import Program
+
+    path = tmp_path / 'long-episode.avi'
+    subprocess.run([
+        'ffmpeg', '-nostdin', '-loglevel', 'error', '-f', 'lavfi',
+        '-i', 'testsrc2=size=160x120:rate=24:duration=20',
+        '-c:v', 'mpeg4', str(path),
+    ], check=True)
+    now = time.time()
+    program = Program(
+        id=1, channel_number=2, channel_name='Test', media_id=1,
+        kind='show', path=path, starts_at=now, ends_at=now + 20,
+        delivery_mode='transcode',
+    )
+    manager = PlaybackManager(tmp_path / 'cache')
+    try:
+        session = manager.create(program)
+        manager.ensure_hls(session.id)
+        playlist = session.directory / 'index.m3u8'
+        deadline = time.monotonic() + 9
+        while not playlist.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert playlist.exists(), 'First HLS segment exceeded the API startup deadline'
+        duration_line = next(line for line in playlist.read_text().splitlines() if line.startswith('#EXTINF:'))
+        assert float(duration_line.split(':')[1].rstrip(',')) <= 4.1
+    finally:
+        manager.close()
